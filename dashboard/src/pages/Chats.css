@@ -629,7 +629,12 @@
   flex-shrink: 0;
 }
 
-.chats-page .message-sender-tag-btn:hover {
+.chats-page .message-sender-tag-btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.chats-page .message-sender-tag-btn:hover:not(:disabled) {
   opacity: 1;
   color: var(--primary-text);
   border-color: var(--primary-text);

@@ -15,6 +15,7 @@ import type { ClientMappingPrefill } from './ClientMappings';
 import {
   sessionApi,
   messageApi,
+  contactApi,
   asMessageType,
   type Session,
   type Chat,
@@ -305,16 +306,32 @@ export function Chats() {
   // whole group — e.g. Sneha Desai posts in "Unbundl x Pink Wardrobe" but isn't mapped herself yet.
   // Only meaningful with a real participant JID (senderJid), which is why ChatThread only shows the
   // button when the message actually carries `author` — a chatName-only fallback has no stable id to
-  // map. Phone left blank: resolving a group participant's @lid to a real number is a separate
-  // network call this quick-add path doesn't fire, same tradeoff as handleTagAsClient above.
+  // map. A group participant's JID is almost always @lid (a privacy id), so parsePhoneFromJid alone
+  // rarely resolves a number here (unlike the header's activeRawPhone, which is usually a plain
+  // @c.us 1:1 chat) — worth the extra round trip to fetch it via the engine's lid->phone lookup
+  // rather than handing the mapping form a name with no number at all.
+  const [resolvingSenderJid, setResolvingSenderJid] = useState<string | null>(null);
   const handleTagSender = useCallback(
-    (senderJid: string, senderName: string) => {
+    async (senderJid: string, senderName: string) => {
       if (!selectedSessionId) return;
+      let phone = parsePhoneFromJid(senderJid) ?? undefined;
+      if (!phone) {
+        setResolvingSenderJid(senderJid);
+        try {
+          const resolved = await contactApi.resolvePhone(selectedSessionId, senderJid);
+          phone = resolved.phone ?? undefined;
+        } catch {
+          // Best-effort: hand off without a phone rather than block the tag on a failed lookup.
+        } finally {
+          setResolvingSenderJid(null);
+        }
+      }
       const prefill: ClientMappingPrefill = {
         sessionId: selectedSessionId,
         jid: senderJid,
         kind: 'contact',
         name: senderName || undefined,
+        phone,
       };
       navigate('/client-mappings', { state: { prefill } });
     },
@@ -1005,6 +1022,7 @@ export function Chats() {
                   showTagSender={isAdmin}
                   mappedContactJids={mappedContactJids}
                   onTagSender={handleTagSender}
+                  resolvingSenderJid={resolvingSenderJid}
                 />
 
                 {/* Composer: attachment preview, emoji panel, reply banner, input bar —

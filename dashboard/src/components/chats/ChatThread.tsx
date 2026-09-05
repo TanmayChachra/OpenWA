@@ -40,6 +40,9 @@ interface ChatThreadProps {
   /** Group participant JIDs that already have a Client Mapping row in this session. */
   mappedContactJids?: Set<string>;
   onTagSender?: (senderJid: string, senderName: string) => void;
+  /** JID currently mid phone-number lookup (see Chats.tsx handleTagSender) — swaps that one button
+   * to a spinner so a double-click can't fire a second lookup while the first is in flight. */
+  resolvingSenderJid?: string | null;
 }
 
 // The messages area of the active chat room: the bubble list (media, quotes, reactions, hover
@@ -65,6 +68,7 @@ function ChatThread({
   showTagSender,
   mappedContactJids,
   onTagSender,
+  resolvingSenderJid,
 }: ChatThreadProps) {
   const { t } = useTranslation();
 
@@ -362,10 +366,15 @@ function ChatThread({
                           type="button"
                           className="message-sender-tag-btn"
                           onClick={() => onTagSender?.(msg.author!, msg.chatName!)}
+                          disabled={resolvingSenderJid === msg.author}
                           title={t('chats.actions.tagAsClient')}
                           aria-label={t('chats.actions.tagAsClient')}
                         >
-                          <UserPlus size={12} />
+                          {resolvingSenderJid === msg.author ? (
+                            <Loader2 size={12} className="animate-spin" />
+                          ) : (
+                            <UserPlus size={12} />
+                          )}
                         </button>
                       )}
                     </div>
