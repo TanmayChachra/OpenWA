@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { Trans, useTranslation } from 'react-i18next';
-import { AlertCircle, AlertTriangle, Download, Loader2, Pencil, Plus, Trash2, Users } from 'lucide-react';
+import { AlertCircle, AlertTriangle, Download, Loader2, Pencil, Plus, Search, Trash2, Users } from 'lucide-react';
 import { sessionApi } from '../services/api';
 import type { ClientMapping, ClientMappingKind, ClientMappingPayload, ClientMappingStatus } from '../services/api';
 import { CLIENT_MAPPING_KINDS, CLIENT_MAPPING_STATUSES } from '../services/api';
@@ -147,6 +147,7 @@ export function ClientMappings() {
 
   const [filterKind, setFilterKind] = useState<ClientMappingKind | ''>('');
   const [filterCompany, setFilterCompany] = useState('');
+  const [searchQuery, setSearchQuery] = useState('');
 
   const filter = useMemo(
     () => ({
@@ -190,6 +191,17 @@ export function ClientMappings() {
   }, []);
 
   const companies = useMemo(() => Array.from(new Set(allMappings.map(m => m.company))).sort(), [allMappings]);
+  // Client-side text search over the already-fetched (kind/company-filtered) page: this table is an
+  // admin directory sized for a human to scroll, not a paginated dataset, so a free-text backend
+  // query param isn't worth the API surface — filtering what's already in memory is instant and
+  // needs no round trip.
+  const visibleMappings = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    if (!q) return mappings;
+    return mappings.filter(m =>
+      [m.name, m.jid, m.phone, m.company, m.team, m.role].some(field => field?.toLowerCase().includes(q)),
+    );
+  }, [mappings, searchQuery]);
   // Static for the runtime's lifetime (backed by Intl's zone database), so compute once rather than
   // re-deriving ~400 zone names on every render.
   const timezoneGroups = useMemo(() => groupedTimezones(), []);
@@ -340,6 +352,16 @@ export function ClientMappings() {
       )}
 
       <div className="client-mappings-filters">
+        <div className="client-mappings-search">
+          <Search size={16} />
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={e => setSearchQuery(e.target.value)}
+            placeholder={t('clientMappings.filters.searchPlaceholder')}
+            aria-label={t('clientMappings.filters.searchPlaceholder')}
+          />
+        </div>
         <select
           aria-label={t('clientMappings.filters.allKinds')}
           value={filterKind}
@@ -374,6 +396,12 @@ export function ClientMappings() {
               <h3>{t('clientMappings.empty.title')}</h3>
               <p>{t('clientMappings.empty.description')}</p>
             </div>
+          ) : visibleMappings.length === 0 ? (
+            <div className="empty-table-state">
+              <Search size={48} strokeWidth={1} />
+              <h3>{t('clientMappings.empty.noResultsTitle')}</h3>
+              <p>{t('clientMappings.empty.noResultsDescription')}</p>
+            </div>
           ) : (
             <table className="mappings-table">
               <thead>
@@ -387,7 +415,7 @@ export function ClientMappings() {
                 </tr>
               </thead>
               <tbody>
-                {mappings.map(mapping => (
+                {visibleMappings.map(mapping => (
                   <tr key={mapping.id} className="table-row">
                     <td>
                       <span className="name-cell">

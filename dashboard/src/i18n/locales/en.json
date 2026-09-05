@@ -1056,7 +1056,8 @@
     },
     "filters": {
       "allKinds": "All kinds",
-      "allCompanies": "All companies"
+      "allCompanies": "All companies",
+      "searchPlaceholder": "Search name, JID, phone, company, team..."
     },
     "actions": {
       "edit": "Edit"
@@ -1075,7 +1076,9 @@
     },
     "empty": {
       "title": "No mappings yet",
-      "description": "Add a mapping to start feeding client/team context into the G Brain export and SLA escalation."
+      "description": "Add a mapping to start feeding client/team context into the G Brain export and SLA escalation.",
+      "noResultsTitle": "No matches",
+      "noResultsDescription": "No mappings match your search or filters."
     },
     "confirm": {
       "deleteTitle": "Delete Mapping",

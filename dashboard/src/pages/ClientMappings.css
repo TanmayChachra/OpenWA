@@ -23,6 +23,31 @@
   min-width: 10rem;
 }
 
+.client-mappings-page .client-mappings-search {
+  display: grid;
+  grid-template-columns: 16px minmax(0, 1fr);
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.625rem 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg-white);
+  color: var(--text-muted);
+  min-width: 16rem;
+  flex: 1;
+  max-width: 22rem;
+}
+
+.client-mappings-page .client-mappings-search input {
+  width: 100%;
+  padding: 0;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--text-primary);
+  font-size: 0.875rem;
+}
+
 .client-mappings-page .client-mappings-content {
   display: flex;
   flex-direction: column;
@@ -269,6 +294,11 @@
 
   .client-mappings-page .client-mappings-filters {
     flex-direction: column;
+  }
+
+  .client-mappings-page .client-mappings-search {
+    max-width: none;
+    min-width: 0;
   }
 
   .client-mappings-page .mappings-table-container {
