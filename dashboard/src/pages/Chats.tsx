@@ -49,7 +49,7 @@ import {
 import { useChannelMessages } from '../hooks/useChannelMessages';
 import { useContactStatuses } from '../hooks/useContactStatuses';
 import { useChatScrollPosition } from '../hooks/useChatScrollPosition';
-import { useCurrentEngineQuery } from '../hooks/queries';
+import { useClientMappingsQuery, useCurrentEngineQuery } from '../hooks/queries';
 import { createTrailingCoalescer } from '../utils/trailingCoalescer';
 import MessageBody from '../components/chats/MessageBody';
 import MediaLightbox, { type LightboxItem } from '../components/chats/MediaLightbox';
@@ -290,6 +290,36 @@ export function Chats() {
     };
     navigate('/client-mappings', { state: { prefill } });
   }, [activeChat, selectedSessionId, activeRawPhone, navigate]);
+
+  // Which group participants already have a mapping in THIS session, so ChatThread can offer a
+  // quick "add to mapping" next to a sender's name instead of only ever tagging the group as a
+  // whole. Client Mapping is an admin-only, unscoped-key surface (see src/modules/client-mapping),
+  // so this only fires for an admin — a non-admin key would just get a 403 back.
+  const { data: mappedContacts = [] } = useClientMappingsQuery(
+    { sessionId: selectedSessionId || undefined, kind: 'contact' },
+    { enabled: isAdmin && !!selectedSessionId },
+  );
+  const mappedContactJids = useMemo(() => new Set(mappedContacts.map(m => m.jid)), [mappedContacts]);
+
+  // "Add to mapping" for one group participant (the sender label above their message), not the
+  // whole group — e.g. Sneha Desai posts in "Unbundl x Pink Wardrobe" but isn't mapped herself yet.
+  // Only meaningful with a real participant JID (senderJid), which is why ChatThread only shows the
+  // button when the message actually carries `author` — a chatName-only fallback has no stable id to
+  // map. Phone left blank: resolving a group participant's @lid to a real number is a separate
+  // network call this quick-add path doesn't fire, same tradeoff as handleTagAsClient above.
+  const handleTagSender = useCallback(
+    (senderJid: string, senderName: string) => {
+      if (!selectedSessionId) return;
+      const prefill: ClientMappingPrefill = {
+        sessionId: selectedSessionId,
+        jid: senderJid,
+        kind: 'contact',
+        name: senderName || undefined,
+      };
+      navigate('/client-mappings', { state: { prefill } });
+    },
+    [selectedSessionId, navigate],
+  );
 
   // 1. Fetch available connected sessions on mount
   useEffect(() => {
@@ -972,6 +1002,9 @@ export function Chats() {
                   onReply={setReplyingTo}
                   onReact={handleReactMessage}
                   onDelete={handleDeleteMessage}
+                  showTagSender={isAdmin}
+                  mappedContactJids={mappedContactJids}
+                  onTagSender={handleTagSender}
                 />
 
                 {/* Composer: attachment preview, emoji panel, reply banner, input bar —

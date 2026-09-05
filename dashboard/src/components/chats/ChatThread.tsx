@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState, type RefObject } from 'react';
 import { useTranslation } from 'react-i18next';
-import { AlertCircle, ChevronDown, CornerUpLeft, Loader2, MessageSquare, Smile, Trash2 } from 'lucide-react';
+import { AlertCircle, ChevronDown, CornerUpLeft, Loader2, MessageSquare, Smile, Trash2, UserPlus } from 'lucide-react';
 import { sessionApi, type Chat } from '../../services/api';
 import { getMediaSrc, senderKey, type ChatMessageView } from '../../utils/chatMessages';
 import { shouldFetchOlderMessages } from '../../utils/scrollDecision';
@@ -35,6 +35,11 @@ interface ChatThreadProps {
   onReply: (message: ChatMessageView) => void;
   onReact: (message: ChatMessageView, emoji: string) => void;
   onDelete: (message: ChatMessageView) => void;
+  /** Gates the per-sender "add to mapping" button below — Client Mapping is an admin-only surface. */
+  showTagSender?: boolean;
+  /** Group participant JIDs that already have a Client Mapping row in this session. */
+  mappedContactJids?: Set<string>;
+  onTagSender?: (senderJid: string, senderName: string) => void;
 }
 
 // The messages area of the active chat room: the bubble list (media, quotes, reactions, hover
@@ -57,6 +62,9 @@ function ChatThread({
   onReply,
   onReact,
   onDelete,
+  showTagSender,
+  mappedContactJids,
+  onTagSender,
 }: ChatThreadProps) {
   const { t } = useTranslation();
 
@@ -338,13 +346,28 @@ function ChatThread({
                     isMediaMessage ? 'media-type' : ''
                   } ${isRevoked ? 'revoked-type' : ''}`}
                 >
-                  {/* Group sender label (WhatsApp-style: coloured name atop the bubble) */}
                   {/* Group sender label (WhatsApp-style: coloured name atop the bubble).
                       Colour keys on the stable sender id, so same-named participants
                       still get distinct colours; the label shows the human name. */}
                   {showSender && (
-                    <div className="message-sender" style={{ color: senderColor(senderKey(msg)!) }}>
-                      {msg.chatName}
+                    <div className="message-sender-row">
+                      <span className="message-sender" style={{ color: senderColor(senderKey(msg)!) }}>
+                        {msg.chatName}
+                      </span>
+                      {/* Only meaningful with a real participant JID (author) — a chatName-only
+                          fallback has nothing stable to map. Hidden once mapped, or for a
+                          non-admin key (Client Mapping is admin-only; see Chats.tsx). */}
+                      {showTagSender && msg.author && !mappedContactJids?.has(msg.author) && (
+                        <button
+                          type="button"
+                          className="message-sender-tag-btn"
+                          onClick={() => onTagSender?.(msg.author!, msg.chatName!)}
+                          title={t('chats.actions.tagAsClient')}
+                          aria-label={t('chats.actions.tagAsClient')}
+                        >
+                          <UserPlus size={12} />
+                        </button>
+                      )}
                     </div>
                   )}
 

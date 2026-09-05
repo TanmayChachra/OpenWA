@@ -247,11 +247,15 @@ export function useRevokeApiKeyMutation() {
 
 // ── Client Mapping Queries ───────────────────────────────────────────
 
-export function useClientMappingsQuery(filter?: { sessionId?: string; kind?: ClientMappingKind; company?: string }) {
+export function useClientMappingsQuery(
+  filter?: { sessionId?: string; kind?: ClientMappingKind; company?: string },
+  options?: { enabled?: boolean },
+) {
   return useQuery({
     queryKey: queryKeys.clientMappings(filter),
     queryFn: () => clientMappingApi.list(filter),
     staleTime: 30_000,
+    enabled: options?.enabled,
   });
 }
 
