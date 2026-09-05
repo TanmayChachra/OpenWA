@@ -8042,6 +8042,198 @@
         ]
       }
     },
+    "/api/client-mappings": {
+      "post": {
+        "operationId": "ClientMappingController_create",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateClientMappingDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Mapping created.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClientMappingResponseDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid mapping (missing sessionId for contact/group, bad timezone, etc)."
+          },
+          "409": {
+            "description": "A mapping for this jid/kind (/session) already exists."
+          }
+        },
+        "summary": "Create a client/teammate/group mapping",
+        "tags": [
+          "client-mapping"
+        ]
+      },
+      "get": {
+        "operationId": "ClientMappingController_findAll",
+        "parameters": [
+          {
+            "name": "sessionId",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "kind",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "enum": [
+                "contact",
+                "group",
+                "teammate"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "name": "company",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ClientMappingResponseDto"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "summary": "List mappings, optionally filtered",
+        "tags": [
+          "client-mapping"
+        ]
+      }
+    },
+    "/api/client-mappings/{id}": {
+      "get": {
+        "operationId": "ClientMappingController_findOne",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClientMappingResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such mapping."
+          }
+        },
+        "summary": "Get one mapping",
+        "tags": [
+          "client-mapping"
+        ]
+      },
+      "put": {
+        "operationId": "ClientMappingController_update",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateClientMappingDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClientMappingResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such mapping."
+          }
+        },
+        "summary": "Update a mapping",
+        "tags": [
+          "client-mapping"
+        ]
+      },
+      "delete": {
+        "operationId": "ClientMappingController_remove",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Mapping deleted."
+          },
+          "404": {
+            "description": "No such mapping."
+          }
+        },
+        "summary": "Delete a mapping",
+        "tags": [
+          "client-mapping"
+        ]
+      }
+    },
     "/api/sessions/{sessionId}/catalog": {
       "get": {
         "operationId": "CatalogController_getCatalog",
@@ -16092,6 +16284,209 @@
           "mimetype",
           "bytes"
         ]
+      },
+      "CreateClientMappingDto": {
+        "type": "object",
+        "properties": {
+          "sessionId": {
+            "type": "string",
+            "description": "WhatsApp session this mapping belongs to. Required for kind=contact/group (a JID is only unique within a session); omit for kind=teammate."
+          },
+          "jid": {
+            "type": "string",
+            "description": "WhatsApp contact/group JID, or an internal teammate identifier for kind=teammate."
+          },
+          "kind": {
+            "type": "string",
+            "description": "What this row identifies: contact | group | teammate.",
+            "enum": [
+              "contact",
+              "group",
+              "teammate"
+            ]
+          },
+          "name": {
+            "type": "string",
+            "maxLength": 200
+          },
+          "phone": {
+            "type": "object",
+            "description": "Nullable — groups do not have one.",
+            "maxLength": 32
+          },
+          "company": {
+            "type": "string",
+            "description": "'Unbundl' or a client company name.",
+            "maxLength": 200
+          },
+          "team": {
+            "type": "object",
+            "description": "Department, e.g. 'Performance', 'Design'.",
+            "maxLength": 100
+          },
+          "role": {
+            "type": "object",
+            "description": "Job title/function within team, e.g. 'Account Manager'.",
+            "maxLength": 100
+          },
+          "timezone": {
+            "type": "object",
+            "description": "IANA time zone, e.g. \"Asia/Jakarta\"."
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "active",
+              "inactive"
+            ],
+            "default": "active"
+          },
+          "backupOwnerId": {
+            "type": "object",
+            "description": "Secondary escalation owner: another mapping row's id."
+          },
+          "sentimentTracking": {
+            "type": "boolean",
+            "description": "Group-kind opt-out for Phase 4 sentiment tracking.",
+            "default": true
+          },
+          "notes": {
+            "type": "object",
+            "description": "Free-text context fed into the G Brain export."
+          }
+        },
+        "required": [
+          "jid",
+          "kind",
+          "name",
+          "company"
+        ]
+      },
+      "ClientMappingResponseDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "sessionId": {
+            "type": "object",
+            "nullable": true
+          },
+          "jid": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "contact",
+              "group",
+              "teammate"
+            ]
+          },
+          "name": {
+            "type": "string"
+          },
+          "phone": {
+            "type": "object",
+            "nullable": true
+          },
+          "company": {
+            "type": "string"
+          },
+          "team": {
+            "type": "object",
+            "nullable": true
+          },
+          "role": {
+            "type": "object",
+            "nullable": true
+          },
+          "timezone": {
+            "type": "object",
+            "nullable": true
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "active",
+              "inactive"
+            ]
+          },
+          "backupOwnerId": {
+            "type": "object",
+            "nullable": true
+          },
+          "sentimentTracking": {
+            "type": "boolean"
+          },
+          "notes": {
+            "type": "object",
+            "nullable": true
+          },
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "updatedAt": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "jid",
+          "kind",
+          "name",
+          "company",
+          "status",
+          "sentimentTracking",
+          "createdAt",
+          "updatedAt"
+        ]
+      },
+      "UpdateClientMappingDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 200
+          },
+          "phone": {
+            "type": "object",
+            "maxLength": 32
+          },
+          "company": {
+            "type": "string",
+            "maxLength": 200
+          },
+          "team": {
+            "type": "object",
+            "maxLength": 100
+          },
+          "role": {
+            "type": "object",
+            "maxLength": 100
+          },
+          "timezone": {
+            "type": "object"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "active",
+              "inactive"
+            ]
+          },
+          "backupOwnerId": {
+            "type": "object"
+          },
+          "sentimentTracking": {
+            "type": "boolean"
+          },
+          "notes": {
+            "type": "object"
+          }
+        }
       },
       "CatalogDto": {
         "type": "object",

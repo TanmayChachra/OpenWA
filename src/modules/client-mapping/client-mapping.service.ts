@@ -1,0 +1,136 @@
+import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { FindOptionsWhere, In, Repository } from 'typeorm';
+import { isUniqueViolation } from '../../common/utils/db-errors';
+import { resolveSessionScope } from '../../common/security/session-scope';
+import { ClientMapping } from './entities/client-mapping.entity';
+import type { ClientMappingKind } from './entities/client-mapping.entity';
+import { CreateClientMappingDto, UpdateClientMappingDto } from './dto/client-mapping.dto';
+
+export interface ClientMappingFilter {
+  sessionId?: string;
+  kind?: ClientMappingKind;
+  company?: string;
+}
+
+@Injectable()
+export class ClientMappingService {
+  constructor(@InjectRepository(ClientMapping, 'data') private readonly repo: Repository<ClientMapping>) {}
+
+  async create(dto: CreateClientMappingDto): Promise<ClientMapping> {
+    if (dto.kind === 'teammate') {
+      if (dto.sessionId) {
+        throw new BadRequestException(
+          'sessionId must not be set for kind=teammate (teammates have no WhatsApp session)',
+        );
+      }
+      // The DB unique index cannot catch this: sessionId is NULL for every teammate row, and both
+      // Postgres and SQLite treat NULLs as distinct in a unique index, so two teammate rows with the
+      // same jid would not collide there. See the entity's doc comment for the full reasoning.
+      const existing = await this.repo.findOne({ where: { kind: 'teammate', jid: dto.jid } });
+      if (existing) {
+        throw new ConflictException(`Teammate mapping for jid "${dto.jid}" already exists`);
+      }
+    } else if (!dto.sessionId) {
+      throw new BadRequestException(
+        `sessionId is required for kind=${dto.kind} (a jid is only unique within a session)`,
+      );
+    }
+
+    if (dto.backupOwnerId) {
+      await this.assertValidBackupOwner(dto.backupOwnerId, null);
+    }
+
+    const mapping = this.repo.create({
+      sessionId: dto.sessionId ?? null,
+      jid: dto.jid,
+      kind: dto.kind,
+      name: dto.name,
+      phone: dto.phone ?? null,
+      company: dto.company,
+      team: dto.team ?? null,
+      role: dto.role ?? null,
+      timezone: dto.timezone ?? null,
+      status: dto.status ?? 'active',
+      backupOwnerId: dto.backupOwnerId ?? null,
+      sentimentTracking: dto.sentimentTracking ?? true,
+      notes: dto.notes ?? null,
+    });
+
+    try {
+      return await this.repo.save(mapping);
+    } catch (err) {
+      if (isUniqueViolation(err)) {
+        throw new ConflictException(
+          `A ${dto.kind} mapping for jid "${dto.jid}" already exists` +
+            (dto.sessionId ? ` in session "${dto.sessionId}"` : ''),
+        );
+      }
+      throw err;
+    }
+  }
+
+  /**
+   * `allowedSessions` is currently always null/empty by the time this is called — the controller
+   * is gated `@RequireUnscopedKey()`, and the guard rejects any key with a non-empty allowlist
+   * before the handler runs. It is threaded through anyway (the `resolveSessionScope` pattern used
+   * by audit/webhooks-list/search) so this stays correct if that gate is ever loosened, rather than
+   * silently becoming a cross-tenant leak the day it is.
+   */
+  findAll(filter: ClientMappingFilter = {}, allowedSessions?: string[] | null): Promise<ClientMapping[]> {
+    const where: FindOptionsWhere<ClientMapping> = {};
+    const sessionScope = resolveSessionScope(allowedSessions, filter.sessionId);
+    if (sessionScope !== null) {
+      if (sessionScope.length === 0) return Promise.resolve([]);
+      where.sessionId = In(sessionScope);
+    }
+    if (filter.kind !== undefined) where.kind = filter.kind;
+    if (filter.company !== undefined) where.company = filter.company;
+    return this.repo.find({ where, order: { createdAt: 'ASC', id: 'ASC' } });
+  }
+
+  async findOne(id: string): Promise<ClientMapping> {
+    const mapping = await this.repo.findOne({ where: { id } });
+    if (!mapping) {
+      throw new NotFoundException(`Client mapping ${id} not found`);
+    }
+    return mapping;
+  }
+
+  async update(id: string, dto: UpdateClientMappingDto): Promise<ClientMapping> {
+    const mapping = await this.findOne(id);
+
+    if (dto.backupOwnerId !== undefined && dto.backupOwnerId !== null) {
+      await this.assertValidBackupOwner(dto.backupOwnerId, id);
+    }
+
+    if (dto.name !== undefined) mapping.name = dto.name;
+    if (dto.phone !== undefined) mapping.phone = dto.phone;
+    if (dto.company !== undefined) mapping.company = dto.company;
+    if (dto.team !== undefined) mapping.team = dto.team;
+    if (dto.role !== undefined) mapping.role = dto.role;
+    if (dto.timezone !== undefined) mapping.timezone = dto.timezone;
+    if (dto.status !== undefined) mapping.status = dto.status;
+    if (dto.backupOwnerId !== undefined) mapping.backupOwnerId = dto.backupOwnerId;
+    if (dto.sentimentTracking !== undefined) mapping.sentimentTracking = dto.sentimentTracking;
+    if (dto.notes !== undefined) mapping.notes = dto.notes;
+
+    return this.repo.save(mapping);
+  }
+
+  async remove(id: string): Promise<void> {
+    const mapping = await this.findOne(id);
+    await this.repo.remove(mapping);
+  }
+
+  /** backupOwnerId is not a DB foreign key (see entity doc comment), so existence and self-reference are checked here. */
+  private async assertValidBackupOwner(backupOwnerId: string, selfId: string | null): Promise<void> {
+    if (backupOwnerId === selfId) {
+      throw new BadRequestException('backupOwnerId cannot reference itself');
+    }
+    const owner = await this.repo.findOne({ where: { id: backupOwnerId } });
+    if (!owner) {
+      throw new BadRequestException(`backupOwnerId "${backupOwnerId}" does not reference an existing mapping`);
+    }
+  }
+}

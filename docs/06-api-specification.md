@@ -6639,6 +6639,86 @@ the provider sees via its declarative `ack` config (doc 25); the plugin itself a
 
 **Errors:** `401` signature verification failed (missing, stale, or wrong secret) · `403` `GET` verification challenge failed (`verifyToken` mismatch) · `404` unknown pluginId/instanceId, or no such claimed route · `413` body over the route's `maxBodyBytes` · `429` rate limit: the per-instance bucket (`INGRESS_INSTANCE_LIMIT`) or the per-client-IP bucket (`INGRESS_IP_LIMIT`), both per `INGRESS_INSTANCE_TTL`; the global per-IP tiers skip this route, so these two are its bounds, and `Retry-After-instance` / `Retry-After-ingress-ip` names the one that shed the request
 
+### 6.4.18 Client/Teammate/Group Mapping
+
+Deployment-global directory (`ClientMappingController`, `/api/client-mappings`) mapping a WhatsApp
+contact/group JID — or an internal teammate identifier — onto client/team context. Backs the G Brain
+export and gives the SLA escalation pipeline (doc 32) an owner to notify. Not session-scoped by a
+route param (there is no `:sessionId` in the path), so every route requires an **unscoped** API key
+with **ADMIN** role; a session-restricted key is rejected outright regardless of role.
+
+`kind` is one of `contact`, `group`, `teammate`. `sessionId` is required for `contact`/`group` (a
+JID is only unique within a session) and must be omitted for `teammate` (a teammate has no
+WhatsApp session). `backupOwnerId`, if set, must reference another existing mapping's `id` and may
+not reference itself.
+
+#### POST /api/client-mappings
+
+Create a mapping. **Auth:** API key (ADMIN, unscoped)
+
+**Request body**
+
+| Field             | Type    | Required | Description                                                          |
+| ----------------- | ------- | -------- | --------------------------------------------------------------------- |
+| sessionId         | string  | see above | Required for `contact`/`group`; must be omitted for `teammate`.       |
+| jid               | string  | yes      | WhatsApp JID, or an internal teammate identifier for `kind=teammate`. |
+| kind              | string  | yes      | `contact` \| `group` \| `teammate`.                                   |
+| name              | string  | yes      | Max 200 chars.                                                        |
+| phone             | string  | no       | Max 32 chars. Groups do not have one.                                 |
+| company           | string  | yes      | `Unbundl` or a client company name. Max 200 chars.                    |
+| team              | string  | no       | Department, e.g. `Performance`, `Design`. Max 100 chars.               |
+| role              | string  | no       | Job title/function within `team`. Max 100 chars.                      |
+| timezone          | string  | no       | IANA time zone name, e.g. `Asia/Jakarta`.                              |
+| status            | string  | no       | `active` \| `inactive`. Default `active`.                              |
+| backupOwnerId     | string  | no       | Another mapping's `id`; secondary SLA escalation owner.                |
+| sentimentTracking | boolean | no       | Group-kind opt-out for Phase 4 sentiment tracking. Default `true`.     |
+| notes             | string  | no       | Free-text context fed into the G Brain export. Max 4000 chars.        |
+
+**Response** `201`
+
+```json
+{
+  "id": "f1e2d3c4-b5a6-7890-1234-567890abcdef",
+  "sessionId": "0d7a2a4e-...",
+  "jid": "628111@c.us",
+  "kind": "contact",
+  "name": "Alice",
+  "phone": null,
+  "company": "Acme",
+  "team": null,
+  "role": null,
+  "timezone": null,
+  "status": "active",
+  "backupOwnerId": null,
+  "sentimentTracking": true,
+  "notes": null,
+  "createdAt": "2026-08-04T10:00:00.000Z",
+  "updatedAt": "2026-08-04T10:00:00.000Z"
+}
+```
+
+**Errors:** `400` missing `sessionId` for `contact`/`group`, `sessionId` set for `teammate`,
+invalid `timezone`, or an unknown/self-referencing `backupOwnerId` · `409` a mapping for this
+`(sessionId, jid, kind)` — or, for `teammate`, this `jid` — already exists
+
+#### GET /api/client-mappings
+
+List mappings. **Auth:** API key (ADMIN, unscoped) · **Response** `200` — array of the shape above.
+Optional query params: `sessionId`, `kind` (`contact` \| `group` \| `teammate`), `company`.
+
+#### GET /api/client-mappings/:id
+
+Get one mapping. **Auth:** API key (ADMIN, unscoped) · `200` or `404`.
+
+#### PUT /api/client-mappings/:id
+
+Partial update (any subset of the create fields except `jid`/`kind`/`sessionId`, which are
+immutable after creation). **Auth:** API key (ADMIN, unscoped) · `200` or `404`.
+
+#### DELETE /api/client-mappings/:id
+
+Delete a mapping. **Auth:** API key (ADMIN, unscoped) · **Response** `204`.
+
 ## 6.5 Real-time API (WebSocket)
 
 Live events are delivered over a **Socket.IO** connection (not a raw WebSocket). The server mounts a single Socket.IO namespace, **`/events`**, on the same port as the REST API. There are no REST routes in this module.
