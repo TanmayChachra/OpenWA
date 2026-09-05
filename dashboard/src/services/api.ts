@@ -191,6 +191,47 @@ export interface CreatedApiKey extends ApiKey {
   apiKey: string;
 }
 
+// Mirrors the backend ClientMapping entity (src/modules/client-mapping/entities/client-mapping.entity.ts).
+export type ClientMappingKind = 'contact' | 'group' | 'teammate';
+export const CLIENT_MAPPING_KINDS: readonly ClientMappingKind[] = ['contact', 'group', 'teammate'];
+export type ClientMappingStatus = 'active' | 'inactive';
+export const CLIENT_MAPPING_STATUSES: readonly ClientMappingStatus[] = ['active', 'inactive'];
+
+export interface ClientMapping {
+  id: string;
+  sessionId: string | null;
+  jid: string;
+  kind: ClientMappingKind;
+  name: string;
+  phone: string | null;
+  company: string;
+  team: string | null;
+  role: string | null;
+  timezone: string | null;
+  status: ClientMappingStatus;
+  backupOwnerId: string | null;
+  sentimentTracking: boolean;
+  notes: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ClientMappingPayload {
+  sessionId?: string;
+  jid: string;
+  kind: ClientMappingKind;
+  name: string;
+  phone?: string | null;
+  company: string;
+  team?: string | null;
+  role?: string | null;
+  timezone?: string | null;
+  status?: ClientMappingStatus;
+  backupOwnerId?: string | null;
+  sentimentTracking?: boolean;
+  notes?: string | null;
+}
+
 export interface AuditLog {
   id: string;
   action: string;
@@ -989,6 +1030,26 @@ export const apiKeyApi = {
     }),
   delete: (id: string) => request<void>(`/auth/api-keys/${id}`, { method: 'DELETE' }),
   revoke: (id: string) => request<ApiKey>(`/auth/api-keys/${id}/revoke`, { method: 'POST' }),
+};
+
+// =============================================================================
+// Client Mapping API (ADMIN, unscoped keys only — see src/modules/client-mapping)
+// =============================================================================
+
+export const clientMappingApi = {
+  list: (filter?: { sessionId?: string; kind?: ClientMappingKind; company?: string }) => {
+    const params = new URLSearchParams();
+    if (filter?.sessionId) params.set('sessionId', filter.sessionId);
+    if (filter?.kind) params.set('kind', filter.kind);
+    if (filter?.company) params.set('company', filter.company);
+    const query = params.toString();
+    return request<ClientMapping[]>(`/client-mappings${query ? `?${query}` : ''}`);
+  },
+  create: (data: ClientMappingPayload) =>
+    request<ClientMapping>('/client-mappings', { method: 'POST', body: JSON.stringify(data) }),
+  update: (id: string, data: Partial<Omit<ClientMappingPayload, 'jid' | 'kind' | 'sessionId'>>) =>
+    request<ClientMapping>(`/client-mappings/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  delete: (id: string) => request<void>(`/client-mappings/${id}`, { method: 'DELETE' }),
 };
 
 // =============================================================================

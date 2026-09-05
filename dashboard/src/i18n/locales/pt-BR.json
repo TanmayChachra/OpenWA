@@ -60,6 +60,7 @@
     "chats": "Chats",
     "webhooks": "Webhooks",
     "apiKeys": "Chaves API",
+    "clientMappings": "Client Mapping",
     "messageTester": "Testador de mensagens",
     "infrastructure": "Infraestrutura",
     "plugins": "Plugins",
@@ -1007,5 +1008,73 @@
       "current": "Esta sessão"
     },
     "loading": "Pesquisando…"
+  },
+  "clientMappings": {
+    "title": "Client Mapping",
+    "subtitle": "Map WhatsApp contacts, groups and teammates to client/team context for the G Brain export and SLA escalation",
+    "createBtn": "Add Mapping",
+    "modalTitleCreate": "Add Mapping",
+    "modalTitleEdit": "Edit Mapping",
+    "kinds": {
+      "contact": "Contact",
+      "group": "Group",
+      "teammate": "Teammate"
+    },
+    "statuses": {
+      "active": "Active",
+      "inactive": "Inactive"
+    },
+    "fields": {
+      "sessionId": "Session",
+      "sessionIdPlaceholder": "Select a session",
+      "sessionIdHint": "Required for contact/group — a JID is only unique within a session.",
+      "jid": "JID / Identifier",
+      "jidPlaceholder": "WhatsApp JID, or a teammate identifier",
+      "kind": "Kind",
+      "name": "Name",
+      "phone": "Phone",
+      "company": "Company",
+      "team": "Team",
+      "role": "Role",
+      "timezone": "Timezone",
+      "timezonePlaceholder": "e.g. Asia/Jakarta",
+      "status": "Status",
+      "backupOwnerId": "Backup owner",
+      "backupOwnerNone": "None",
+      "sentimentTracking": "Track sentiment for this group",
+      "notes": "Notes",
+      "notesPlaceholder": "Context fed into the G Brain export, e.g. preferred contact hours"
+    },
+    "columns": {
+      "name": "Name",
+      "kind": "Kind",
+      "company": "Company",
+      "team": "Team",
+      "status": "Status",
+      "actions": "Actions"
+    },
+    "filters": {
+      "allKinds": "All kinds",
+      "allCompanies": "All companies"
+    },
+    "actions": {
+      "edit": "Edit"
+    },
+    "empty": {
+      "title": "No mappings yet",
+      "description": "Add a mapping to start feeding client/team context into the G Brain export and SLA escalation."
+    },
+    "confirm": {
+      "deleteTitle": "Delete Mapping",
+      "deleteMessage": "Are you sure you want to permanently delete <strong>{{name}}</strong>? This action cannot be undone."
+    },
+    "toasts": {
+      "created": "Mapping created",
+      "updated": "Mapping updated",
+      "deleted": "Mapping deleted",
+      "createFailed": "Failed to create mapping",
+      "updateFailed": "Failed to update mapping",
+      "deleteFailed": "Failed to delete mapping"
+    }
   }
 }
