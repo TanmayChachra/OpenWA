@@ -3,6 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { ConfigService } from '@nestjs/config';
 import { createLogger } from '../../common/services/logger.service';
+import { isUniqueViolation } from '../../common/utils/db-errors';
 import { parseWaId, userPart } from '../../engine/identity/wa-id';
 import type { IncomingMessage } from '../../engine/interfaces/whatsapp-engine.interface';
 import { ClientMapping, ClientMappingKind } from './entities/client-mapping.entity';
@@ -54,12 +55,13 @@ export class ClientMappingAutoTagService {
       const phone = !message.isGroup && parsed.kind === 'user' ? parsed.userPart : null;
       const resolvedName = message.isGroup ? undefined : (message.contact?.pushName ?? message.contact?.name);
 
+      const name = resolvedName || userPart(jid);
       await this.repo.save(
         this.repo.create({
           sessionId,
           jid,
           kind,
-          name: resolvedName || userPart(jid),
+          name,
           phone,
           company: UNKNOWN_COMPANY,
           team: null,
@@ -71,10 +73,16 @@ export class ClientMappingAutoTagService {
           notes: null,
         }),
       );
+      // The one positive signal this path ever emits — without it, a created row is
+      // indistinguishable from one added by hand or by "Import from Chats" (see #incident: two
+      // manually-created rows were mistaken for auto-tag output purely from their timestamps).
+      this.logger.log('Auto-tagged new client mapping', { sessionId, jid, kind, name });
     } catch (error) {
-      // Covers a genuine failure AND the benign race of two inbound messages for the same brand-new
-      // chat landing concurrently (the unique (sessionId, jid, kind) index rejects the second
-      // insert) — either way, one row ends up existing, which is all this path promises.
+      // A unique-violation here is the benign race of two inbound messages for the same brand-new
+      // chat landing concurrently (the (sessionId, jid, kind) index rejects the second insert) —
+      // one row ends up existing either way, which is all this path promises, so it doesn't warrant
+      // a warning. Anything else is a genuine failure.
+      if (isUniqueViolation(error)) return;
       this.logger.warn('Client mapping auto-tag failed', {
         sessionId,
         jid,
