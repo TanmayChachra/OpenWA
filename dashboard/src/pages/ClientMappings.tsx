@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { Trans, useTranslation } from 'react-i18next';
-import { AlertCircle, AlertTriangle, Loader2, Pencil, Plus, Trash2, Users } from 'lucide-react';
+import { AlertCircle, AlertTriangle, Download, Loader2, Pencil, Plus, Trash2, Users } from 'lucide-react';
+import { sessionApi } from '../services/api';
 import type { ClientMapping, ClientMappingKind, ClientMappingPayload, ClientMappingStatus } from '../services/api';
 import { CLIENT_MAPPING_KINDS, CLIENT_MAPPING_STATUSES } from '../services/api';
 import { useDocumentTitle } from '../hooks/useDocumentTitle';
@@ -16,7 +17,20 @@ import {
 } from '../hooks/queries';
 import { PageHeader } from '../components/PageHeader';
 import { Modal } from '../components/Modal';
+import { groupedTimezones } from '../utils/timezones';
+import { parsePhoneFromJid } from '../utils/formatPhone';
 import './ClientMappings.css';
+
+/** Placeholder written by "Import from Chats" for the one field it cannot know: which client a
+ * WhatsApp chat belongs to. Also what flags a row incomplete in the table (see isIncompleteMapping). */
+const UNKNOWN_COMPANY = 'Unknown';
+
+/** A row that still needs a human pass: either the import left the company as a placeholder, or
+ * WhatsApp gave no resolvable name for the chat (pushName/contact name), so the raw id was used. */
+function isIncompleteMapping(mapping: ClientMapping): boolean {
+  if (mapping.kind === 'teammate') return false;
+  return mapping.company === UNKNOWN_COMPANY || mapping.name === mapping.jid.split('@')[0];
+}
 
 interface MappingForm {
   sessionId: string;
@@ -43,7 +57,10 @@ const emptyForm: MappingForm = {
   company: '',
   team: '',
   role: '',
-  timezone: '',
+  // Most of this team's clients/teammates are IST, so default a new mapping there instead of
+  // making every create pick it explicitly. formFromMapping (editing an existing row) overrides
+  // this with whatever is actually stored, including "not set" — the default only applies to new rows.
+  timezone: 'Asia/Kolkata',
   status: 'active',
   backupOwnerId: '',
   sentimentTracking: true,
@@ -153,6 +170,10 @@ export function ClientMappings() {
   const [form, setForm] = useState<MappingForm>(emptyForm);
   const [deleteTarget, setDeleteTarget] = useState<ClientMapping | null>(null);
 
+  const [showImportModal, setShowImportModal] = useState(false);
+  const [importSessionId, setImportSessionId] = useState('');
+  const [isImporting, setIsImporting] = useState(false);
+
   // Arrived here via the Chats page's "Tag as Client" button: open the create modal pre-filled
   // instead of making a rep hunt down and retype a JID by hand. Cleared from history immediately
   // so a back-navigation or refresh doesn't reopen the same prefill.
@@ -169,6 +190,9 @@ export function ClientMappings() {
   }, []);
 
   const companies = useMemo(() => Array.from(new Set(allMappings.map(m => m.company))).sort(), [allMappings]);
+  // Static for the runtime's lifetime (backed by Intl's zone database), so compute once rather than
+  // re-deriving ~400 zone names on every render.
+  const timezoneGroups = useMemo(() => groupedTimezones(), []);
 
   const isSaving = createMutation.isPending || updateMutation.isPending;
   const isEditing = !!editingMapping;
@@ -224,6 +248,54 @@ export function ClientMappings() {
     }
   };
 
+  // Bulk-seeds a mapping for every chat WhatsApp already knows about, using only what it already
+  // resolved (pushName / saved contact name, the JID itself) — company is left as the UNKNOWN_COMPANY
+  // placeholder, which is exactly what marks the row incomplete in the table afterward. One create
+  // call per chat rather than a new backend bulk endpoint: this runs once per session, occasionally,
+  // over a chat list sized for a human to scroll, not a bulk-data pipeline.
+  const handleImport = async () => {
+    if (!importSessionId) return;
+    setIsImporting(true);
+    try {
+      const chats = await sessionApi.getChats(importSessionId);
+      const existingKeys = new Set(
+        allMappings.filter(m => m.sessionId === importSessionId).map(m => `${m.kind}:${m.jid}`),
+      );
+      let created = 0;
+      let skipped = 0;
+      let failed = 0;
+      for (const chat of chats) {
+        const kind: ClientMappingKind = chat.isGroup ? 'group' : 'contact';
+        if (existingKeys.has(`${kind}:${chat.id}`)) {
+          skipped++;
+          continue;
+        }
+        const resolvedName = chat.name?.trim();
+        try {
+          await createMutation.mutateAsync({
+            sessionId: importSessionId,
+            jid: chat.id,
+            kind,
+            name: resolvedName || chat.id.split('@')[0],
+            phone: kind === 'contact' ? (parsePhoneFromJid(chat.id) ?? undefined) : undefined,
+            company: UNKNOWN_COMPANY,
+          });
+          created++;
+        } catch {
+          failed++;
+        }
+      }
+      toast.success(t('clientMappings.import.done', { created, skipped }));
+      if (failed > 0) toast.error(t('clientMappings.import.someFailed', { failed }));
+      setShowImportModal(false);
+      setImportSessionId('');
+    } catch (err) {
+      toast.error(t('clientMappings.import.failed'), err instanceof Error ? err.message : t('common.unknownError'));
+    } finally {
+      setIsImporting(false);
+    }
+  };
+
   const backupOwnerOptions = allMappings.filter(m => m.id !== editingMapping?.id);
 
   if (isLoading) {
@@ -241,10 +313,21 @@ export function ClientMappings() {
         subtitle={t('clientMappings.subtitle')}
         actions={
           isAdmin ? (
-            <button className="btn-primary" onClick={openCreate}>
-              <Plus size={18} />
-              {t('clientMappings.createBtn')}
-            </button>
+            <span className="client-mappings-header-actions">
+              <button
+                className="btn-secondary"
+                onClick={() => setShowImportModal(true)}
+                disabled={sessions.length === 0}
+                title={sessions.length === 0 ? t('clientMappings.import.noSessions') : undefined}
+              >
+                <Download size={18} />
+                {t('clientMappings.importBtn')}
+              </button>
+              <button className="btn-primary" onClick={openCreate}>
+                <Plus size={18} />
+                {t('clientMappings.createBtn')}
+              </button>
+            </span>
           ) : undefined
         }
       />
@@ -307,7 +390,14 @@ export function ClientMappings() {
                 {mappings.map(mapping => (
                   <tr key={mapping.id} className="table-row">
                     <td>
-                      <span className="name-cell">{mapping.name}</span>
+                      <span className="name-cell">
+                        {mapping.name}
+                        {isIncompleteMapping(mapping) && (
+                          <span className="incomplete-marker" title={t('clientMappings.badges.incomplete')}>
+                            <AlertTriangle size={14} />
+                          </span>
+                        )}
+                      </span>
                       <span className="jid-subtext">{mapping.jid}</span>
                     </td>
                     <td>
@@ -424,12 +514,22 @@ export function ClientMappings() {
           <input id="cm-role" value={form.role} onChange={e => setForm({ ...form, role: e.target.value })} />
 
           <label htmlFor="cm-timezone">{t('clientMappings.fields.timezone')}</label>
-          <input
+          <select
             id="cm-timezone"
             value={form.timezone}
             onChange={e => setForm({ ...form, timezone: e.target.value })}
-            placeholder={t('clientMappings.fields.timezonePlaceholder')}
-          />
+          >
+            <option value="">{t('clientMappings.fields.timezoneNotSet')}</option>
+            {timezoneGroups.map(group => (
+              <optgroup key={group.region} label={group.region}>
+                {group.zones.map(zone => (
+                  <option key={zone} value={zone}>
+                    {zone}
+                  </option>
+                ))}
+              </optgroup>
+            ))}
+          </select>
 
           <label htmlFor="cm-status">{t('clientMappings.fields.status')}</label>
           <select
@@ -478,6 +578,46 @@ export function ClientMappings() {
             onChange={e => setForm({ ...form, notes: e.target.value })}
             placeholder={t('clientMappings.fields.notesPlaceholder')}
           />
+        </Modal>
+      )}
+
+      {showImportModal && (
+        <Modal
+          open
+          onClose={() => (isImporting ? undefined : setShowImportModal(false))}
+          title={t('clientMappings.import.title')}
+          closeLabel={t('common.close')}
+          hideCloseButton={isImporting}
+          footer={
+            <>
+              <button className="btn-secondary" onClick={() => setShowImportModal(false)} disabled={isImporting}>
+                {t('common.cancel')}
+              </button>
+              <button
+                className="btn-primary"
+                onClick={() => void handleImport()}
+                disabled={!importSessionId || isImporting}
+              >
+                {isImporting ? <Loader2 className="animate-spin" size={16} /> : t('clientMappings.import.confirmBtn')}
+              </button>
+            </>
+          }
+        >
+          <p className="field-hint">{t('clientMappings.import.description')}</p>
+          <label htmlFor="cm-import-session">{t('clientMappings.fields.sessionId')}</label>
+          <select
+            id="cm-import-session"
+            value={importSessionId}
+            disabled={isImporting}
+            onChange={e => setImportSessionId(e.target.value)}
+          >
+            <option value="">{t('clientMappings.fields.sessionIdPlaceholder')}</option>
+            {sessions.map(session => (
+              <option key={session.id} value={session.id}>
+                {session.name}
+              </option>
+            ))}
+          </select>
         </Modal>
       )}
 

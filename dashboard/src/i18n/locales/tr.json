@@ -1038,13 +1038,13 @@
       "team": "Team",
       "role": "Role",
       "timezone": "Timezone",
-      "timezonePlaceholder": "e.g. Asia/Jakarta",
       "status": "Status",
       "backupOwnerId": "Backup owner",
       "backupOwnerNone": "None",
       "sentimentTracking": "Track sentiment for this group",
       "notes": "Notes",
-      "notesPlaceholder": "Context fed into the G Brain export, e.g. preferred contact hours"
+      "notesPlaceholder": "Context fed into the G Brain export, e.g. preferred contact hours",
+      "timezoneNotSet": "Not set"
     },
     "columns": {
       "name": "Name",
@@ -1076,6 +1076,19 @@
       "createFailed": "Failed to create mapping",
       "updateFailed": "Failed to update mapping",
       "deleteFailed": "Failed to delete mapping"
+    },
+    "importBtn": "Import from Chats",
+    "badges": {
+      "incomplete": "Incomplete — needs review (company and/or name could not be resolved)"
+    },
+    "import": {
+      "title": "Import from Chats",
+      "description": "Creates a mapping for every chat in the selected session that isn't mapped yet, using the name/number WhatsApp already resolved. Company is left as \"Unknown\" until a rep fills it in.",
+      "confirmBtn": "Import",
+      "noSessions": "No sessions available to import from",
+      "done": "Imported {{created}}, skipped {{skipped}} (already mapped)",
+      "someFailed": "{{failed}} chat(s) failed to import",
+      "failed": "Import failed"
     }
   }
 }

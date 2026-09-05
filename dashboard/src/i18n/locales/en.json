@@ -1013,6 +1013,7 @@
     "title": "Client Mapping",
     "subtitle": "Map WhatsApp contacts, groups and teammates to client/team context for the G Brain export and SLA escalation",
     "createBtn": "Add Mapping",
+    "importBtn": "Import from Chats",
     "modalTitleCreate": "Add Mapping",
     "modalTitleEdit": "Edit Mapping",
     "kinds": {
@@ -1037,7 +1038,7 @@
       "team": "Team",
       "role": "Role",
       "timezone": "Timezone",
-      "timezonePlaceholder": "e.g. Asia/Jakarta",
+      "timezoneNotSet": "Not set",
       "status": "Status",
       "backupOwnerId": "Backup owner",
       "backupOwnerNone": "None",
@@ -1059,6 +1060,18 @@
     },
     "actions": {
       "edit": "Edit"
+    },
+    "badges": {
+      "incomplete": "Incomplete — needs review (company and/or name could not be resolved)"
+    },
+    "import": {
+      "title": "Import from Chats",
+      "description": "Creates a mapping for every chat in the selected session that isn't mapped yet, using the name/number WhatsApp already resolved. Company is left as \"Unknown\" until a rep fills it in.",
+      "confirmBtn": "Import",
+      "noSessions": "No sessions available to import from",
+      "done": "Imported {{created}}, skipped {{skipped}} (already mapped)",
+      "someFailed": "{{failed}} chat(s) failed to import",
+      "failed": "Import failed"
     },
     "empty": {
       "title": "No mappings yet",
