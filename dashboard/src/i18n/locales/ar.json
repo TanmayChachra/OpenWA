@@ -99,7 +99,8 @@
     "actions": {
       "reply": "رد",
       "react": "تفاعل",
-      "delete": "حذف الرسالة"
+      "delete": "حذف الرسالة",
+      "tagAsClient": "Add to Client Mapping"
     },
     "replyingTo": "الرد على {{name}}",
     "you": "أنت",

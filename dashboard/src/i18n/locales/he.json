@@ -98,7 +98,8 @@
     "actions": {
       "reply": "השב",
       "react": "תגובה",
-      "delete": "מחק הודעה"
+      "delete": "מחק הודעה",
+      "tagAsClient": "Add to Client Mapping"
     },
     "replyingTo": "משיב ל-{{name}}",
     "you": "אתה",

@@ -96,7 +96,8 @@
     "actions": {
       "reply": "Répondre",
       "react": "Réagir",
-      "delete": "Supprimer le message"
+      "delete": "Supprimer le message",
+      "tagAsClient": "Add to Client Mapping"
     },
     "replyingTo": "Réponse à {{name}}",
     "you": "Vous",

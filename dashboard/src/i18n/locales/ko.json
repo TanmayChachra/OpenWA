@@ -96,7 +96,8 @@
     "actions": {
       "reply": "답장",
       "react": "반응",
-      "delete": "메시지 삭제"
+      "delete": "메시지 삭제",
+      "tagAsClient": "Add to Client Mapping"
     },
     "replyingTo": "{{name}}님에게 답장",
     "you": "나",

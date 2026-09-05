@@ -96,7 +96,8 @@
     "actions": {
       "reply": "回复",
       "react": "回应",
-      "delete": "删除消息"
+      "delete": "删除消息",
+      "tagAsClient": "Add to Client Mapping"
     },
     "replyingTo": "正在回复 {{name}}",
     "you": "你",

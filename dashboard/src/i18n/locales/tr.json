@@ -96,7 +96,8 @@
     "actions": {
       "reply": "Yanıtla",
       "react": "Tepki Ver",
-      "delete": "Mesajı sil"
+      "delete": "Mesajı sil",
+      "tagAsClient": "Add to Client Mapping"
     },
     "replyingTo": "{{name}} kişisine yanıt veriliyor",
     "you": "Siz",

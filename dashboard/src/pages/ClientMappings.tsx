@@ -1,4 +1,5 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { Trans, useTranslation } from 'react-i18next';
 import { AlertCircle, AlertTriangle, Loader2, Pencil, Plus, Trash2, Users } from 'lucide-react';
 import type { ClientMapping, ClientMappingKind, ClientMappingPayload, ClientMappingStatus } from '../services/api';
@@ -48,6 +49,26 @@ const emptyForm: MappingForm = {
   sentimentTracking: true,
   notes: '',
 };
+
+/** Carried via router state by the Chats page's "Tag as Client" button — see Chats.tsx. */
+export interface ClientMappingPrefill {
+  sessionId: string;
+  jid: string;
+  kind: ClientMappingKind;
+  name?: string;
+  phone?: string;
+}
+
+function formFromPrefill(prefill: ClientMappingPrefill): MappingForm {
+  return {
+    ...emptyForm,
+    sessionId: prefill.kind === 'teammate' ? '' : prefill.sessionId,
+    jid: prefill.jid,
+    kind: prefill.kind,
+    name: prefill.name ?? '',
+    phone: prefill.phone ?? '',
+  };
+}
 
 function formFromMapping(mapping: ClientMapping): MappingForm {
   return {
@@ -131,6 +152,21 @@ export function ClientMappings() {
   const [editingMapping, setEditingMapping] = useState<ClientMapping | null>(null);
   const [form, setForm] = useState<MappingForm>(emptyForm);
   const [deleteTarget, setDeleteTarget] = useState<ClientMapping | null>(null);
+
+  // Arrived here via the Chats page's "Tag as Client" button: open the create modal pre-filled
+  // instead of making a rep hunt down and retype a JID by hand. Cleared from history immediately
+  // so a back-navigation or refresh doesn't reopen the same prefill.
+  const location = useLocation();
+  const navigate = useNavigate();
+  useEffect(() => {
+    const prefill = (location.state as { prefill?: ClientMappingPrefill } | null)?.prefill;
+    if (!prefill) return;
+    setEditingMapping(null);
+    setForm(formFromPrefill(prefill));
+    setShowModal(true);
+    navigate(location.pathname, { replace: true, state: null });
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- run once for the state this mount arrived with
+  }, []);
 
   const companies = useMemo(() => Array.from(new Set(allMappings.map(m => m.company))).sort(), [allMappings]);
 

@@ -1,14 +1,17 @@
 import { useState, useEffect, useCallback, useRef, useMemo, useLayoutEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Trans, useTranslation } from 'react-i18next';
 import { nextReconnectState } from '../utils/reconnectState';
 import { applyIncomingToChatList } from '../utils/chatList';
 import { filterChats, filterChannels, groupStatusesByContact } from '../utils/chatFilters';
-import { ArrowLeft, Loader2, Megaphone, CircleDashed, AlertCircle, MessageSquare } from 'lucide-react';
+import { ArrowLeft, Loader2, Megaphone, CircleDashed, AlertCircle, MessageSquare, UserPlus } from 'lucide-react';
 import { useProfilePicture } from '../hooks/useProfilePicture';
 import { useProfilePictures } from '../hooks/useProfilePictures';
 import { useResolvedPhone } from '../hooks/useResolvedPhone';
-import { formatPhoneForDisplay } from '../utils/formatPhone';
+import { useRole } from '../hooks/useRole';
+import { formatPhoneForDisplay, parsePhoneFromJid } from '../utils/formatPhone';
+import type { ClientMappingPrefill } from './ClientMappings';
 import {
   sessionApi,
   messageApi,
@@ -117,6 +120,8 @@ export function Chats() {
   const { t } = useTranslation();
   useDocumentTitle(t('nav.chats'));
   const { error: showErrorToast, warning: showWarningToast } = useToast();
+  const { isAdmin } = useRole();
+  const navigate = useNavigate();
 
   // Sessions list & active session
   const [sessions, setSessions] = useState<Session[]>([]);
@@ -265,6 +270,26 @@ export function Chats() {
   );
   const activePhoneText =
     activePhoneDisplay ?? (resolvedPhoneQ.data ? formatPhoneForDisplay(resolvedPhoneQ.data) : null);
+  // Raw digits (not the pretty-printed display string) for prefilling a Client Mapping — same
+  // resolution order as the header line above, minus the cosmetic formatting.
+  const activeRawPhone = activeChat ? (parsePhoneFromJid(activeChat.id) ?? resolvedPhoneQ.data ?? undefined) : undefined;
+
+  // "Tag as Client" from the chat window: WhatsApp already hands us a display name for most chats
+  // (pushName — the name the other party set for themselves — or, if the number is in this
+  // account's own address book, their saved contact name; the chat-list endpoint resolves
+  // whichever is available into `chat.name`). Prefilling from that means a rep only has to fill in
+  // company/team/notes, not hunt down and retype a JID by hand.
+  const handleTagAsClient = useCallback(() => {
+    if (!activeChat || !selectedSessionId) return;
+    const prefill: ClientMappingPrefill = {
+      sessionId: selectedSessionId,
+      jid: activeChat.id,
+      kind: activeChat.isGroup ? 'group' : 'contact',
+      name: activeChat.name || undefined,
+      phone: activeChat.isGroup ? undefined : activeRawPhone,
+    };
+    navigate('/client-mappings', { state: { prefill } });
+  }, [activeChat, selectedSessionId, activeRawPhone, navigate]);
 
   // 1. Fetch available connected sessions on mount
   useEffect(() => {
@@ -914,6 +939,17 @@ export function Chats() {
                       {activeChat.id}
                     </span>
                   </div>
+                  {isAdmin && (
+                    <button
+                      type="button"
+                      className="room-tag-client-btn"
+                      onClick={handleTagAsClient}
+                      title={t('chats.actions.tagAsClient')}
+                      aria-label={t('chats.actions.tagAsClient')}
+                    >
+                      <UserPlus size={18} />
+                    </button>
+                  )}
                 </header>
 
                 {/* Messages body (list, media, reactions, scroll-to-bottom) — components/chats/ChatThread. */}

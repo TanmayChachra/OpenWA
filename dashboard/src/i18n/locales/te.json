@@ -96,7 +96,8 @@
     "actions": {
       "reply": "ప్రత్యుత్తరం",
       "react": "ప్రతిస్పందించు",
-      "delete": "సందేశాన్ని తొలగించు"
+      "delete": "సందేశాన్ని తొలగించు",
+      "tagAsClient": "Add to Client Mapping"
     },
     "replyingTo": "{{name}} కు ప్రత్యుత్తరం ఇస్తోంది",
     "you": "మీరు",

@@ -96,7 +96,8 @@
     "actions": {
       "reply": "Antworten",
       "react": "Reagieren",
-      "delete": "Nachricht löschen"
+      "delete": "Nachricht löschen",
+      "tagAsClient": "Add to Client Mapping"
     },
     "replyingTo": "Antwort an {{name}}",
     "you": "Du",
