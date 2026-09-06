@@ -2,7 +2,10 @@
 // dedupe against a row that already exists, and never let a DB failure escape into the receive
 // path — the same contract automation-rules' evaluateInbound already carries.
 import { DataSource } from 'typeorm';
+import { EngineRegistry } from '../../engine/engine-registry.service';
 import { ClientMappingAutoTagService } from './client-mapping-auto-tag.service';
+import { ClientMappingService } from './client-mapping.service';
+import { ClientMappingIdentityService } from './client-mapping-identity.service';
 import { ClientMapping } from './entities/client-mapping.entity';
 import type { IncomingMessage } from '../../engine/interfaces/whatsapp-engine.interface';
 
@@ -18,7 +21,14 @@ describe('ClientMappingAutoTagService', () => {
       synchronize: true,
     });
     await ds.initialize();
-    service = new ClientMappingAutoTagService(ds.getRepository(ClientMapping));
+    // Real EngineRegistry with nothing registered, same as client-mapping.service.spec.ts — every
+    // resolvePhone call in these tests answers straight off the jid (a real @c.us) or null (a @lid
+    // this "engine" can't map), with no network/mock involved.
+    const mappings = new ClientMappingService(
+      ds.getRepository(ClientMapping),
+      new ClientMappingIdentityService(new EngineRegistry()),
+    );
+    service = new ClientMappingAutoTagService(mappings);
   });
 
   afterEach(async () => {
@@ -100,9 +110,10 @@ describe('ClientMappingAutoTagService', () => {
   });
 
   it('is disabled when clientMapping.autoTagEnabled is false, without throwing', async () => {
-    const disabled = new ClientMappingAutoTagService(ds.getRepository(ClientMapping), {
-      get: () => false,
-    } as never);
+    const disabled = new ClientMappingAutoTagService(
+      new ClientMappingService(ds.getRepository(ClientMapping), new ClientMappingIdentityService(new EngineRegistry())),
+      { get: () => false } as never,
+    );
 
     await disabled.evaluateInbound('s1', inbound());
 
@@ -110,9 +121,11 @@ describe('ClientMappingAutoTagService', () => {
   });
 
   it('swallows a repository failure instead of rejecting (fire-and-forget contract)', async () => {
-    const broken = new ClientMappingAutoTagService({
-      findOne: () => Promise.reject(new Error('db down')),
-    } as never);
+    const brokenMappings = new ClientMappingService(
+      { findOne: () => Promise.reject(new Error('db down')) } as never,
+      new ClientMappingIdentityService(new EngineRegistry()),
+    );
+    const broken = new ClientMappingAutoTagService(brokenMappings);
 
     await expect(broken.evaluateInbound('s1', inbound())).resolves.toBeUndefined();
   });

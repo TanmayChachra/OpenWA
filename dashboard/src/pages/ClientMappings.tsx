@@ -1,9 +1,16 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
+import { useQueryClient } from '@tanstack/react-query';
 import { Trans, useTranslation } from 'react-i18next';
 import { AlertCircle, AlertTriangle, Download, Loader2, Pencil, Plus, Search, Trash2, Users } from 'lucide-react';
-import { contactApi, groupApi, sessionApi } from '../services/api';
-import type { ClientMapping, ClientMappingKind, ClientMappingPayload, ClientMappingStatus } from '../services/api';
+import { clientMappingApi, contactApi, groupApi, sessionApi } from '../services/api';
+import type {
+  ClientMapping,
+  ClientMappingKind,
+  ClientMappingPayload,
+  ClientMappingStatus,
+  ResolveAndUpsertClientMappingPayload,
+} from '../services/api';
 import { CLIENT_MAPPING_KINDS, CLIENT_MAPPING_STATUSES } from '../services/api';
 import { useDocumentTitle } from '../hooks/useDocumentTitle';
 import { useRole } from '../hooks/useRole';
@@ -165,6 +172,10 @@ export function ClientMappings() {
   const createMutation = useCreateClientMappingMutation();
   const updateMutation = useUpdateClientMappingMutation();
   const deleteMutation = useDeleteClientMappingMutation();
+  // handleImport calls clientMappingApi.resolveAndUpsert directly (not through a mutation hook) to
+  // avoid a cache invalidation per row across a 100+-call bulk import; it invalidates once itself
+  // when the whole run finishes.
+  const queryClient = useQueryClient();
 
   const [showModal, setShowModal] = useState(false);
   const [editingMapping, setEditingMapping] = useState<ClientMapping | null>(null);
@@ -278,19 +289,13 @@ export function ClientMappings() {
     setIsImporting(true);
     try {
       const chats = await sessionApi.getChats(importSessionId);
+      // Fast local pre-filter only, keyed by raw jid — the actual "does this already exist"
+      // decision, INCLUDING matching a group participant's @lid to an existing @c.us row for the
+      // same real person by resolved phone, lives server-side in resolveAndUpsert (docs/33 Phase
+      // B). This Set only saves a wasted round trip for a jid this run (or an earlier one) already
+      // knows about; it is not what prevents duplicates.
       const existingKeys = new Set(
         allMappings.filter(m => m.sessionId === importSessionId).map(m => `${m.kind}:${m.jid}`),
-      );
-      // docs/33 root cause: a group participant is often addressed only by its privacy @lid jid,
-      // which never matches this account's own @c.us contact record for the same real person
-      // (WhatsApp's own contact store keeps two models for one real contact — verified live: same
-      // pushName, same effective id, different `number`). Deduping group members by resolved PHONE
-      // as well as by jid stops "Lakshye Kapoor" (or anyone else known both as a group @lid and as a
-      // direct @c.us contact) from landing as two separate rows.
-      const existingPhones = new Set(
-        allMappings
-          .filter(m => m.sessionId === importSessionId && m.kind === 'contact' && m.phone)
-          .map(m => m.phone as string),
       );
       let created = 0;
       let membersCreated = 0;
@@ -318,13 +323,11 @@ export function ClientMappings() {
         ? `${sessions.find(s => s.id === importSessionId)!.phone}@c.us`
         : null;
 
-      // Importing every member of every group is easily 100+ sequential creates for a session with
+      // Importing every member of every group is easily 100+ sequential calls for a session with
       // several groups — verified live: a real 14-group account tripped the API's own rate limiter
       // (429) partway through, silently dropping the rest. Back off and retry on 429 instead of
-      // guessing a safe fixed delay up front (the limit itself, RATE_LIMIT_MEDIUM_LIMIT, is operator-
-      // configurable) — fast when nothing is throttled, self-pacing when it is. Generic so the
-      // phone-resolution lookup below (docs/33 Phase A) shares the same backoff as the create call —
-      // both hit the same rate limiter.
+      // guessing a safe fixed delay up front (the limit itself, RATE_LIMIT_MEDIUM_LIMIT, is
+      // operator-configurable) — fast when nothing is throttled, self-pacing when it is.
       const withRetry = async <T,>(fn: () => Promise<T>, maxAttempts = 6): Promise<T> => {
         for (let attempt = 1; attempt <= maxAttempts; attempt++) {
           try {
@@ -340,19 +343,22 @@ export function ClientMappings() {
         }
         throw new Error('unreachable');
       };
-      const createWithRetry = (payload: ClientMappingPayload) => withRetry(() => createMutation.mutateAsync(payload));
 
-      // Claims `key` before the network round trip settles, so a person who is a member of two
-      // groups being imported in the same run is created once, not raced into a duplicate attempt.
-      const createOne = async (payload: ClientMappingPayload, key: string): Promise<boolean> => {
+      // Claims `key` before the round trip settles, so a person who is a member of two groups
+      // being imported in the same run is resolved once, not raced into two attempts. Goes through
+      // clientMappingApi.resolveAndUpsert rather than createMutation — identity resolution (@lid ->
+      // phone) and cross-jid dedup both happen server-side now (docs/33 Phase B), so this loop no
+      // longer needs its own phone lookups or a client-side existingPhones set.
+      const resolveOne = async (payload: ResolveAndUpsertClientMappingPayload, key: string): Promise<boolean> => {
         if (existingKeys.has(key)) {
           skipped++;
           return false;
         }
         existingKeys.add(key);
         try {
-          await createWithRetry(payload);
-          return true;
+          const { created: didCreate } = await withRetry(() => clientMappingApi.resolveAndUpsert(payload));
+          if (!didCreate) skipped++;
+          return didCreate;
         } catch {
           failed++;
           existingKeys.delete(key);
@@ -363,26 +369,20 @@ export function ClientMappings() {
       for (const chat of chats) {
         const kind: ClientMappingKind = chat.isGroup ? 'group' : 'contact';
         const resolvedName = chat.name?.trim();
-        const chatPhone = kind === 'contact' ? (parsePhoneFromJid(chat.id) ?? undefined) : undefined;
         if (
-          await createOne(
+          await resolveOne(
             {
               sessionId: importSessionId,
               jid: chat.id,
               kind,
-              name: resolvedName || chat.id.split('@')[0],
-              phone: chatPhone,
+              nameHint: resolvedName || undefined,
+              phoneHint: kind === 'contact' ? (parsePhoneFromJid(chat.id) ?? undefined) : undefined,
               company: UNKNOWN_COMPANY,
             },
             `${kind}:${chat.id}`,
           )
         ) {
           created++;
-          // Feed the phone-dedup set (docs/33) so a group member seen later in this same run, whose
-          // only address is a @lid this account can't parse a phone from directly, still resolves
-          // (via contactApi.resolvePhone) to a phone that matches this row instead of creating a
-          // second one.
-          if (chatPhone) existingPhones.add(chatPhone);
         }
 
         if (chat.isGroup && importGroupMembers) {
@@ -390,52 +390,25 @@ export function ClientMappings() {
             const info = await groupApi.getInfo(importSessionId, chat.id);
             for (const participant of info.participants) {
               if (participant.id === ownJid) continue;
-              const participantKey = `contact:${participant.id}`;
-              if (existingKeys.has(participantKey)) {
-                skipped++;
-                continue;
-              }
-
-              // Group participants are frequently addressed only by their privacy @lid jid, which
-              // parsePhoneFromJid can't read a phone out of. Resolve it the same way the per-sender
-              // "add to mapping" button does (docs/33 Phase A) so this person can be matched against
-              // an existing @c.us mapping by phone instead of always falling through to a new row.
-              let phone = parsePhoneFromJid(participant.id) ?? undefined;
-              if (!phone) {
-                try {
-                  const resolved = await withRetry(() => contactApi.resolvePhone(importSessionId, participant.id));
-                  phone = resolved.phone ?? undefined;
-                } catch {
-                  // Resolution failing (transport/engine error) shouldn't abort the whole group's
-                  // import — fall through and create the row under its raw jid, same as before.
-                }
-              }
-
-              if (phone && existingPhones.has(phone)) {
-                // Same real person already mapped under a different jid (their @c.us contact, or a
-                // @lid seen earlier this run) — claim the jid too so a re-run skips the network call.
-                existingKeys.add(participantKey);
-                skipped++;
-                continue;
-              }
-
-              const memberName =
-                contactNameById.get(participant.id) || participant.name?.trim() || participant.id.split('@')[0];
+              const memberName = contactNameById.get(participant.id) || participant.name?.trim() || undefined;
               if (
-                await createOne(
+                await resolveOne(
                   {
                     sessionId: importSessionId,
                     jid: participant.id,
                     kind: 'contact',
-                    name: memberName,
-                    phone,
+                    nameHint: memberName,
+                    // parsePhoneFromJid can't read a phone out of a @lid participant id — leaving
+                    // phoneHint unset (undefined drops the key entirely once JSON-serialized) tells
+                    // resolveAndUpsert to resolve it server-side and match it against an existing
+                    // @c.us mapping by phone instead of always creating a second row for it.
+                    phoneHint: parsePhoneFromJid(participant.id) ?? undefined,
                     company: UNKNOWN_COMPANY,
                   },
-                  participantKey,
+                  `contact:${participant.id}`,
                 )
               ) {
                 membersCreated++;
-                if (phone) existingPhones.add(phone);
               }
             }
           } catch {
@@ -444,6 +417,7 @@ export function ClientMappings() {
           }
         }
       }
+      void queryClient.invalidateQueries({ queryKey: ['clientMappings'] });
       toast.success(t('clientMappings.import.done', { created: created + membersCreated, skipped }));
       if (failed > 0) toast.error(t('clientMappings.import.someFailed', { failed }));
       setShowImportModal(false);

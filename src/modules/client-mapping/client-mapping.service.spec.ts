@@ -1,6 +1,8 @@
 import { DataSource } from 'typeorm';
 import { BadRequestException, ConflictException, NotFoundException } from '@nestjs/common';
+import { EngineRegistry } from '../../engine/engine-registry.service';
 import { ClientMappingService } from './client-mapping.service';
+import { ClientMappingIdentityService } from './client-mapping-identity.service';
 import { ClientMapping } from './entities/client-mapping.entity';
 
 describe('ClientMappingService', () => {
@@ -15,7 +17,13 @@ describe('ClientMappingService', () => {
       synchronize: true,
     });
     await ds.initialize();
-    service = new ClientMappingService(ds.getRepository(ClientMapping));
+    // Real EngineRegistry, not a mock (same pattern as message-projector.service.spec.ts) — with no
+    // engine registered for any session, resolvePhone always answers null, which is exactly the
+    // "can't resolve" case these tests want as their baseline.
+    service = new ClientMappingService(
+      ds.getRepository(ClientMapping),
+      new ClientMappingIdentityService(new EngineRegistry()),
+    );
   });
 
   afterEach(async () => {
@@ -158,6 +166,97 @@ describe('ClientMappingService', () => {
       const mapping = await service.create(contactDto());
       await service.remove(mapping.id);
       await expect(service.findOne(mapping.id)).rejects.toBeInstanceOf(NotFoundException);
+    });
+  });
+
+  // docs/33 Phase B: the shared path every automatic writer (auto-tag, Import from Chats) calls
+  // instead of deciding "does this exist" and resolving identity itself.
+  describe('resolveAndUpsert', () => {
+    it('creates a new contact row when nothing matches by jid or phone', async () => {
+      const { mapping, created } = await service.resolveAndUpsert({
+        sessionId: 's1',
+        jid: '628111@c.us',
+        kind: 'contact',
+        nameHint: 'Alice',
+      });
+      expect(created).toBe(true);
+      expect(mapping).toMatchObject({ jid: '628111@c.us', name: 'Alice', phone: '628111', company: 'Unknown' });
+    });
+
+    it('returns the existing row, unmodified, on an exact jid/kind re-call', async () => {
+      const first = await service.resolveAndUpsert({ sessionId: 's1', jid: '628111@c.us', kind: 'contact' });
+      const second = await service.resolveAndUpsert({
+        sessionId: 's1',
+        jid: '628111@c.us',
+        kind: 'contact',
+        nameHint: 'Should not overwrite',
+      });
+      expect(second.created).toBe(false);
+      expect(second.mapping.id).toBe(first.mapping.id);
+      expect(second.mapping.name).toBe(first.mapping.name);
+    });
+
+    it('matches an existing row by resolved phone even under a completely different jid (the Lakshye Kapoor bug)', async () => {
+      const byPhoneJid = await service.resolveAndUpsert({
+        sessionId: 's1',
+        jid: '919999367045@c.us',
+        kind: 'contact',
+        nameHint: 'Lakshye Kapoor',
+      });
+      expect(byPhoneJid.created).toBe(true);
+
+      // A group participant addressed only by a @lid this test's EngineRegistry can't resolve
+      // (no engine registered) would fall through with phone=null and create a second row — the
+      // exact bug. Simulate the RESOLVED case via phoneHint (what a caller passes once resolution
+      // succeeds) to pin the dedup-by-phone behavior itself, independent of engine resolution.
+      const byLidJid = await service.resolveAndUpsert({
+        sessionId: 's1',
+        jid: '30378471473326@lid',
+        kind: 'contact',
+        nameHint: 'Lakshye Kapoor',
+        phoneHint: '919999367045',
+      });
+      expect(byLidJid.created).toBe(false);
+      expect(byLidJid.mapping.id).toBe(byPhoneJid.mapping.id);
+      expect(byLidJid.mapping.jid).toBe('919999367045@c.us'); // untouched — not overwritten with the @lid jid
+
+      const rows = await service.findAll({ sessionId: 's1' });
+      expect(rows).toHaveLength(1);
+    });
+
+    it('creates a group row keyed by jid — groups never resolve a phone', async () => {
+      const { mapping, created } = await service.resolveAndUpsert({
+        sessionId: 's1',
+        jid: '120363000@g.us',
+        kind: 'group',
+      });
+      expect(created).toBe(true);
+      expect(mapping.phone).toBeNull();
+    });
+
+    it('creates under the raw jid when phone resolution fails (no engine registered)', async () => {
+      const { mapping, created } = await service.resolveAndUpsert({
+        sessionId: 's1',
+        jid: '99999@lid',
+        kind: 'contact',
+        nameHint: 'Unknown Lid',
+      });
+      expect(created).toBe(true);
+      expect(mapping).toMatchObject({ jid: '99999@lid', phone: null });
+    });
+
+    it('resolves a create race against itself to the winning row instead of throwing', async () => {
+      // Simulates two concurrent callers (e.g. the same person in two groups imported at once)
+      // racing to create the same (sessionId, jid, kind) row: the DB unique index rejects the
+      // second insert, and resolveAndUpsert must hand back the winner rather than propagate the
+      // conflict — an automatic writer has no user to show a 409 to.
+      const [a, b] = await Promise.all([
+        service.resolveAndUpsert({ sessionId: 's1', jid: '628111@c.us', kind: 'contact', nameHint: 'A' }),
+        service.resolveAndUpsert({ sessionId: 's1', jid: '628111@c.us', kind: 'contact', nameHint: 'B' }),
+      ]);
+      expect(a.mapping.id).toBe(b.mapping.id);
+      expect([a.created, b.created].sort()).toEqual([false, true]);
+      expect(await service.findAll({ sessionId: 's1' })).toHaveLength(1);
     });
   });
 });

@@ -1,20 +1,9 @@
 import { Injectable, Optional } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
 import { ConfigService } from '@nestjs/config';
 import { createLogger } from '../../common/services/logger.service';
-import { isUniqueViolation } from '../../common/utils/db-errors';
-import { parseWaId, userPart } from '../../engine/identity/wa-id';
 import type { IncomingMessage } from '../../engine/interfaces/whatsapp-engine.interface';
-import { ClientMapping, ClientMappingKind } from './entities/client-mapping.entity';
-
-/**
- * Placeholder written for company — the one field this fast, synchronous path can never resolve
- * (WhatsApp has no concept of "which client this chat belongs to"). Identical to the one "Import
- * from Chats" writes, so both paths flag a row incomplete via the exact same signal (see
- * ClientMappings.tsx isIncompleteMapping) regardless of which one created it.
- */
-const UNKNOWN_COMPANY = 'Unknown';
+import { ClientMappingKind } from './entities/client-mapping.entity';
+import { ClientMappingService } from './client-mapping.service';
 
 /**
  * Auto-seeds a Client Mapping row (docs/32) the first time a session sees a chat, contact or
@@ -22,19 +11,16 @@ const UNKNOWN_COMPANY = 'Unknown';
  * from the same inbound dispatch stage as automation rules (see message-projector.service.ts) —
  * same contract: a failure here must never surface into the receive path.
  *
- * Deliberately stays off the network: only fields already on the message payload are used (no
- * engine round trip), so this never adds latency to the hot inbound path. That means a brand-new
- * GROUP's name is not resolvable here (WhatsApp does not carry a group's subject on the message
- * itself, only on its own chat-list entry) and falls back to the raw id — the same fallback
- * "Import from Chats" uses for an unresolved chat.name, so both paths flag it incomplete the same
- * way rather than one silently guessing better than the other.
+ * Identity resolution and the "does this already exist" decision live in
+ * {@link ClientMappingService.resolveAndUpsert} (docs/33 Phase B), shared with "Import from Chats"
+ * — this service's only job is turning an inbound message into that one call's inputs.
  */
 @Injectable()
 export class ClientMappingAutoTagService {
   private readonly logger = createLogger('ClientMappingAutoTagService');
 
   constructor(
-    @InjectRepository(ClientMapping, 'data') private readonly repo: Repository<ClientMapping>,
+    private readonly mappings: ClientMappingService,
     @Optional() private readonly configService?: ConfigService,
   ) {}
 
@@ -44,45 +30,25 @@ export class ClientMappingAutoTagService {
 
     const jid = message.chatId;
     const kind: ClientMappingKind = message.isGroup ? 'group' : 'contact';
+    // A brand-new GROUP's name is not resolvable here (WhatsApp does not carry a group's subject on
+    // the message itself, only on its own chat-list entry) — resolveAndUpsert's raw-id fallback
+    // covers that, the same fallback "Import from Chats" uses for an unresolved chat.name.
+    const nameHint = message.isGroup ? undefined : (message.contact?.pushName ?? message.contact?.name);
 
     try {
-      const existing = await this.repo.findOne({ where: { sessionId, jid, kind } });
-      if (existing) return;
-
-      // A group JID's "user part" is its own id, never a phone — only a 1:1 chat backed by a real
-      // (non-@lid) address resolves to one without a network call.
-      const parsed = parseWaId(jid);
-      const phone = !message.isGroup && parsed.kind === 'user' ? parsed.userPart : null;
-      const resolvedName = message.isGroup ? undefined : (message.contact?.pushName ?? message.contact?.name);
-
-      const name = resolvedName || userPart(jid);
-      await this.repo.save(
-        this.repo.create({
+      const { mapping, created } = await this.mappings.resolveAndUpsert({ sessionId, jid, kind, nameHint });
+      if (created) {
+        // The one positive signal this path ever emits — without it, a created row is
+        // indistinguishable from one added by hand or by "Import from Chats" (see #incident: two
+        // manually-created rows were mistaken for auto-tag output purely from their timestamps).
+        this.logger.log('Auto-tagged new client mapping', {
           sessionId,
-          jid,
+          jid: mapping.jid,
           kind,
-          name,
-          phone,
-          company: UNKNOWN_COMPANY,
-          team: null,
-          role: null,
-          timezone: null,
-          status: 'active',
-          backupOwnerId: null,
-          sentimentTracking: true,
-          notes: null,
-        }),
-      );
-      // The one positive signal this path ever emits — without it, a created row is
-      // indistinguishable from one added by hand or by "Import from Chats" (see #incident: two
-      // manually-created rows were mistaken for auto-tag output purely from their timestamps).
-      this.logger.log('Auto-tagged new client mapping', { sessionId, jid, kind, name });
+          name: mapping.name,
+        });
+      }
     } catch (error) {
-      // A unique-violation here is the benign race of two inbound messages for the same brand-new
-      // chat landing concurrently (the (sessionId, jid, kind) index rejects the second insert) —
-      // one row ends up existing either way, which is all this path promises, so it doesn't warrant
-      // a warning. Anything else is a genuine failure.
-      if (isUniqueViolation(error)) return;
       this.logger.warn('Client mapping auto-tag failed', {
         sessionId,
         jid,

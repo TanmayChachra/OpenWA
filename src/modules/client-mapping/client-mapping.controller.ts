@@ -8,6 +8,8 @@ import {
   CLIENT_MAPPING_KINDS,
   ClientMappingResponseDto,
   CreateClientMappingDto,
+  ResolveAndUpsertClientMappingDto,
+  ResolveAndUpsertResultDto,
   UpdateClientMappingDto,
 } from './dto/client-mapping.dto';
 
@@ -33,6 +35,19 @@ export class ClientMappingController {
   @ApiResponse({ status: 409, description: 'A mapping for this jid/kind (/session) already exists.' })
   async create(@Body() dto: CreateClientMappingDto): Promise<ClientMappingResponseDto> {
     return ClientMappingResponseDto.fromEntity(await this.mappings.create(dto));
+  }
+
+  @Post('resolve-and-upsert')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary:
+      'Resolve a contact/group jid to phone (@lid aware) and return its mapping, creating one only if none exists — by resolved phone first, then by jid. ' +
+      'docs/33 Phase B: the shared path every automatic writer (auto-tag, Import from Chats) should use instead of its own create-if-missing logic.',
+  })
+  @ApiResponse({ status: 200, description: 'Resolved (existing or newly created).', type: ResolveAndUpsertResultDto })
+  async resolveAndUpsert(@Body() dto: ResolveAndUpsertClientMappingDto): Promise<ResolveAndUpsertResultDto> {
+    const { mapping, created } = await this.mappings.resolveAndUpsert(dto);
+    return { mapping: ClientMappingResponseDto.fromEntity(mapping), created };
   }
 
   @Get()

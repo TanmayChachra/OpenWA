@@ -232,6 +232,23 @@ export interface ClientMappingPayload {
   notes?: string | null;
 }
 
+// docs/33 Phase B: request/response shape for the shared "does this already exist" + identity
+// resolution endpoint every automatic writer (auto-tag, Import from Chats) should use instead of
+// its own create-if-missing logic.
+export interface ResolveAndUpsertClientMappingPayload {
+  sessionId: string;
+  jid: string;
+  kind: 'contact' | 'group';
+  nameHint?: string;
+  phoneHint?: string | null;
+  company?: string;
+}
+
+export interface ResolveAndUpsertClientMappingResult {
+  mapping: ClientMapping;
+  created: boolean;
+}
+
 export interface AuditLog {
   id: string;
   action: string;
@@ -1077,6 +1094,14 @@ export const clientMappingApi = {
   update: (id: string, data: Partial<Omit<ClientMappingPayload, 'jid' | 'kind' | 'sessionId'>>) =>
     request<ClientMapping>(`/client-mappings/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
   delete: (id: string) => request<void>(`/client-mappings/${id}`, { method: 'DELETE' }),
+  // Resolves @lid -> phone server-side (shared, cached table) and dedupes by phone before jid — see
+  // docs/33 Phase B. Used by bulk import instead of create() so the exact bug fixed once in the
+  // backend (Athar Abbas / Lakshye Kapoor: one real person, two jids) can't resurface here.
+  resolveAndUpsert: (data: ResolveAndUpsertClientMappingPayload) =>
+    request<ResolveAndUpsertClientMappingResult>('/client-mappings/resolve-and-upsert', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
 };
 
 // =============================================================================

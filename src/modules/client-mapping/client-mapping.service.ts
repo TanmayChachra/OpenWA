@@ -3,9 +3,16 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { FindOptionsWhere, In, Repository } from 'typeorm';
 import { isUniqueViolation } from '../../common/utils/db-errors';
 import { resolveSessionScope } from '../../common/security/session-scope';
+import { userPart } from '../../engine/identity/wa-id';
 import { ClientMapping } from './entities/client-mapping.entity';
 import type { ClientMappingKind } from './entities/client-mapping.entity';
-import { CreateClientMappingDto, UpdateClientMappingDto } from './dto/client-mapping.dto';
+import { ClientMappingIdentityService } from './client-mapping-identity.service';
+import { UNKNOWN_CLIENT_MAPPING_COMPANY } from './client-mapping.constants';
+import {
+  CreateClientMappingDto,
+  ResolveAndUpsertClientMappingDto,
+  UpdateClientMappingDto,
+} from './dto/client-mapping.dto';
 
 export interface ClientMappingFilter {
   sessionId?: string;
@@ -13,9 +20,17 @@ export interface ClientMappingFilter {
   company?: string;
 }
 
+export interface ResolveAndUpsertResult {
+  mapping: ClientMapping;
+  created: boolean;
+}
+
 @Injectable()
 export class ClientMappingService {
-  constructor(@InjectRepository(ClientMapping, 'data') private readonly repo: Repository<ClientMapping>) {}
+  constructor(
+    @InjectRepository(ClientMapping, 'data') private readonly repo: Repository<ClientMapping>,
+    private readonly identity: ClientMappingIdentityService,
+  ) {}
 
   async create(dto: CreateClientMappingDto): Promise<ClientMapping> {
     if (dto.kind === 'teammate') {
@@ -121,6 +136,59 @@ export class ClientMappingService {
   async remove(id: string): Promise<void> {
     const mapping = await this.findOne(id);
     await this.repo.remove(mapping);
+  }
+
+  /**
+   * docs/33 Phase B: the one path every automatic writer (auto-tag, "Import from Chats") calls
+   * instead of deciding "does this exist" and resolving identity itself. Dedupes a contact by
+   * resolved PHONE first, not raw jid — the fix for the Athar Abbas / Lakshye Kapoor bug, where the
+   * same real person's `@lid` group-participant id and `@c.us` 1:1-chat id were treated as two
+   * different people because each caller only ever checked its own raw jid.
+   */
+  async resolveAndUpsert(dto: ResolveAndUpsertClientMappingDto): Promise<ResolveAndUpsertResult> {
+    const phone =
+      dto.phoneHint !== undefined
+        ? (dto.phoneHint ?? null)
+        : dto.kind === 'contact'
+          ? await this.identity.resolvePhone(dto.sessionId, dto.jid)
+          : null;
+
+    if (dto.kind === 'contact' && phone) {
+      const byPhone = await this.repo.findOne({ where: { sessionId: dto.sessionId, kind: 'contact', phone } });
+      if (byPhone) return { mapping: byPhone, created: false };
+    }
+
+    const existing = await this.repo.findOne({ where: { sessionId: dto.sessionId, jid: dto.jid, kind: dto.kind } });
+    if (existing) return { mapping: existing, created: false };
+
+    const mapping = this.repo.create({
+      sessionId: dto.sessionId,
+      jid: dto.jid,
+      kind: dto.kind,
+      name: dto.nameHint?.trim() || userPart(dto.jid),
+      phone,
+      company: dto.company?.trim() || UNKNOWN_CLIENT_MAPPING_COMPANY,
+      team: null,
+      role: null,
+      timezone: null,
+      status: 'active',
+      backupOwnerId: null,
+      sentimentTracking: true,
+      notes: null,
+    });
+
+    try {
+      return { mapping: await this.repo.save(mapping), created: true };
+    } catch (err) {
+      if (isUniqueViolation(err)) {
+        // Lost a create race against another caller for the same (sessionId, jid, kind) — e.g. two
+        // groups sharing this participant were imported concurrently. The winner's row is the
+        // correct answer either way.
+        const winner = await this.repo.findOne({ where: { sessionId: dto.sessionId, jid: dto.jid, kind: dto.kind } });
+        if (winner) return { mapping: winner, created: false };
+      }
+      throw err;
+    }
   }
 
   /** backupOwnerId is not a DB foreign key (see entity doc comment), so existence and self-reference are checked here. */

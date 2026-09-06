@@ -191,6 +191,52 @@ export class UpdateClientMappingDto {
   notes?: string | null;
 }
 
+/**
+ * docs/33 Phase B: the one request shape every automatic write path (auto-tag, "Import from
+ * Chats") uses instead of each resolving identity and deciding "does this already exist" itself.
+ * Deliberately narrower than {@link CreateClientMappingDto} — no timezone/notes/backupOwnerId — an
+ * automatic path never knows those; a human fills them in afterward via the normal update endpoint.
+ */
+export class ResolveAndUpsertClientMappingDto {
+  @ApiProperty({ description: 'WhatsApp session this mapping belongs to.' })
+  @IsString()
+  @IsNotEmpty()
+  sessionId!: string;
+
+  @ApiProperty({ description: 'WhatsApp contact/group JID.' })
+  @IsString()
+  @IsNotEmpty()
+  jid!: string;
+
+  @ApiProperty({
+    description: 'contact or group — teammate rows have no WhatsApp identity to resolve.',
+    enum: ['contact', 'group'],
+  })
+  @IsIn(['contact', 'group'])
+  kind!: 'contact' | 'group';
+
+  @ApiPropertyOptional({ description: 'Display name to use only if this creates a new row.', maxLength: 200 })
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  nameHint?: string;
+
+  @ApiPropertyOptional({
+    description: 'Phone already known by the caller (e.g. parsed straight off a @c.us jid) — skips resolution.',
+    maxLength: 32,
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(32)
+  phoneHint?: string | null;
+
+  @ApiPropertyOptional({ description: 'Company to use only if this creates a new row. Defaults to "Unknown".' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  company?: string;
+}
+
 export class ClientMappingResponseDto {
   @ApiProperty()
   @Expose()
@@ -259,4 +305,17 @@ export class ClientMappingResponseDto {
   static fromEntity(mapping: ClientMapping): ClientMappingResponseDto {
     return plainToInstance(ClientMappingResponseDto, mapping, { excludeExtraneousValues: true });
   }
+}
+
+export class ResolveAndUpsertResultDto {
+  @ApiProperty({ type: ClientMappingResponseDto })
+  @Expose()
+  mapping!: ClientMappingResponseDto;
+
+  @ApiProperty({
+    description:
+      'True if this call created a new row; false if an existing row (by jid or by resolved phone) was returned instead.',
+  })
+  @Expose()
+  created!: boolean;
 }
