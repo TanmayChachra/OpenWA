@@ -970,6 +970,33 @@ export interface ProfilePictureResponse {
   url: string | null;
 }
 
+// =============================================================================
+// Group API
+// =============================================================================
+
+export interface GroupParticipant {
+  /** Participant id in the engine's native format (`…@c.us`, `…@s.whatsapp.net`, or `…@lid`). */
+  id: string;
+  /** MSISDN digits the engine reported — best-effort; may actually be a @lid's local part, not a
+   * real phone number, so treat this as informational and derive an authoritative phone via
+   * parsePhoneFromJid(id) instead of trusting this field directly. */
+  number: string;
+  name?: string;
+  isAdmin: boolean;
+  isSuperAdmin: boolean;
+}
+
+export interface GroupInfo {
+  id: string;
+  name: string;
+  participants: GroupParticipant[];
+}
+
+export const groupApi = {
+  getInfo: (sessionId: string, groupId: string) =>
+    request<GroupInfo>(`/sessions/${sessionId}/groups/${encodeURIComponent(groupId)}`),
+};
+
 export const contactApi = {
   list: (sessionId: string) => request<Contact[]>(`/sessions/${sessionId}/contacts`),
   checkNumber: (sessionId: string, number: string) =>

@@ -1106,7 +1106,9 @@
       "noSessions": "No sessions available to import from",
       "done": "Imported {{created}}, skipped {{skipped}} (already mapped)",
       "someFailed": "{{failed}} chat(s) failed to import",
-      "failed": "Import failed"
+      "failed": "Import failed",
+      "includeGroupMembers": "Also import each group's members as contacts",
+      "includeGroupMembersHint": "Someone who only ever posts inside a group (never a 1:1 with this number) has no chat of their own, so the option above is what actually adds them — otherwise only the group itself gets a row."
     }
   }
 }
