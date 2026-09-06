@@ -1,5 +1,19 @@
 # 33 — Import Identity De-Duplication Plan
 
+**Status: Phase A done (commit 1eed7550), Phase B done (commit be8bada8). Phase C/D not started.**
+
+Phase B shipped a variant of its original endpoint sketch: `POST
+/client-mappings/resolve-and-upsert` dedupes by phone using the entity's
+existing (non-unique) `phone` column directly — no `alias_jids`/unique-index
+schema change was needed for the app-layer dedup to work correctly, so that
+part of Phase C is now optional hardening (a DB-level backstop) rather than a
+prerequisite. `ClientMappingIdentityService` resolves `@lid` -> phone via the
+same `EngineRegistry` + `LidMappingStoreService` the inbound message path
+already uses (see session-lid-resolver.service.ts) — so a lid resolved once
+anywhere in the app (a message, an import, this endpoint) is cached for every
+other caller too, not just within one import run.
+
+
 Bug root: Lakshye Kapoor two rows, `919999367045@c.us` + `30378471473326@lid`. WA
 own contact store hold two models same real jid, diff `number` field. Group
 participant list hand raw unresolved `@lid` jid, never c.us form. 3 separate
