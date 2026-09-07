@@ -1,14 +1,20 @@
 # 33 — Import Identity De-Duplication Plan
 
-**Status: Phase A done (1eed7550), Phase B done (be8bada8), Phase C done (a700c8b5). Phase D not started.**
+**Status: Phase A done (1eed7550), Phase B done (be8bada8), Phase C done (a700c8b5), Phase D done (see below). All four phases shipped.**
 
-Phase C's migration (1786600000000) merges pre-existing duplicates inline —
-required, since the unique index can't be created over live duplicates. That
-IS Phase D's core merge logic, already applied for every environment that
-runs this migration. Phase D's remaining scope: a standalone one-off script
-for anyone who wants to preview/dry-run the merge before a migration runs
-non-interactively in their deploy pipeline, and updating this doc's Phase D
-section accordingly — not new merge logic.
+Phase C's migration (1786600000000) already merges pre-existing duplicates
+inline — required, since the unique index can't be created over live
+duplicates. That IS Phase D's core merge logic, applied automatically for
+every environment that runs the migration (which happens unattended at next
+boot). Phase D shipped `scripts/preview-client-mapping-merge.ts`
+(`npm run client-mappings:preview-merge` / `-- --apply`): runs the EXACT SAME
+migration class inside a transaction, reports what it found, then rolls back
+(default) or commits (`--apply`) — a safety net for an operator who wants to
+see the merge before it happens unattended, not a second implementation of
+the merge logic. Verified against a seeded throwaway sqlite DB reproducing
+the Lakshye Kapoor shape: dry-run reported correctly and left the DB
+byte-identical (row count, no `aliasJids` column even added); `--apply` on
+the same seed actually merged and persisted.
 
 Phase B shipped a variant of its original endpoint sketch: `POST
 /client-mappings/resolve-and-upsert` dedupes by phone using the entity's
@@ -116,18 +122,22 @@ matching `data-source.ts` entity update — same pattern as original
 different jid, both currently legal under old schema) need one-time merge
 BEFORE the unique index can apply — see Phase D.
 
-## Phase D — one-time backfill + ongoing reconciliation
+## Phase D — one-time backfill + ongoing reconciliation (done)
 
-1. One-off script (`scripts/merge-duplicate-client-mappings.ts`, run once,
-   throwaway): group existing rows by `(sessionId, phone)` where phone not
-   null, count > 1 → keep the row with more filled fields (company/team/role
-   non-Unknown wins), move loser's jid into winner's `alias_jids`, delete
-   loser. Log every merge (id kept, id deleted, jids merged) — evidence, not
-   inference, matching the lesson from the Athar/Isha incident.
-2. Ongoing: Phase C's unique index makes new duplicates impossible to insert
-   (DB throws, `isUniqueViolation` catch already exists in auto-tag service,
-   same catch pattern reusable in the new shared endpoint) — so no cron job
-   needed, the constraint IS the ongoing reconciliation.
+1. The actual merge (keep richer row, preserve loser jid as alias, delete
+   loser) is NOT a separate script — it lives in migration 1786600000000's
+   `up()` (Phase C) and runs automatically, unattended, the next time any
+   environment boots against a database with pre-existing duplicates. One
+   implementation, not two to keep in sync.
+2. `scripts/preview-client-mapping-merge.ts` wraps that SAME migration class
+   in a transaction for an operator who wants to see it coming first: default
+   mode reports every duplicate group and the computed merge, then rolls
+   back (DB untouched); `--apply` commits the identical merge for real, ahead
+   of a deploy. `npm run client-mappings:preview-merge [-- --apply]`.
+3. Ongoing: Phase C's unique index makes new duplicates impossible to insert
+   (DB throws, `isUniqueViolation` catch already exists in auto-tag service
+   and in `resolveAndUpsert`) — so no cron job needed, the constraint IS the
+   ongoing reconciliation.
 
 ## Test coverage (what "regression test" means here — no unit-test harness
 exists yet for ClientMappings.tsx, per this session; do NOT skip verification,
