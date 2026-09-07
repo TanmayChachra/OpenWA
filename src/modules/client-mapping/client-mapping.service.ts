@@ -155,7 +155,7 @@ export class ClientMappingService {
 
     if (dto.kind === 'contact' && phone) {
       const byPhone = await this.repo.findOne({ where: { sessionId: dto.sessionId, kind: 'contact', phone } });
-      if (byPhone) return { mapping: byPhone, created: false };
+      if (byPhone) return { mapping: await this.rememberAlias(byPhone, dto.jid), created: false };
     }
 
     const existing = await this.repo.findOne({ where: { sessionId: dto.sessionId, jid: dto.jid, kind: dto.kind } });
@@ -188,6 +188,32 @@ export class ClientMappingService {
         if (winner) return { mapping: winner, created: false };
       }
       throw err;
+    }
+  }
+
+  /**
+   * docs/33 Phase C: called whenever resolveAndUpsert matches an incoming jid to an existing row by
+   * PHONE rather than by its own `jid` column — the incoming jid would otherwise be silently
+   * discarded instead of ever being recorded anywhere. `jid` itself is never touched (every other
+   * part of the app already reads/writes through it); this only grows `aliasJids`, and only when the
+   * incoming jid isn't already in it, so a hot path (the same @lid seen on every message in a group)
+   * doesn't write on every call.
+   */
+  private async rememberAlias(mapping: ClientMapping, jid: string): Promise<ClientMapping> {
+    if (mapping.jid === jid) return mapping;
+    const existing = this.parseAliasJids(mapping.aliasJids);
+    if (existing.includes(jid)) return mapping;
+    mapping.aliasJids = JSON.stringify([...existing, jid]);
+    return this.repo.save(mapping);
+  }
+
+  private parseAliasJids(raw: string | null): string[] {
+    if (!raw) return [];
+    try {
+      const parsed: unknown = JSON.parse(raw);
+      return Array.isArray(parsed) ? parsed.filter((v): v is string => typeof v === 'string') : [];
+    } catch {
+      return [];
     }
   }
 

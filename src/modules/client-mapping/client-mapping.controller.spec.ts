@@ -25,6 +25,7 @@ function mappingEntity(overrides: Partial<ClientMapping> = {}): ClientMapping {
     backupOwnerId: null,
     sentimentTracking: true,
     notes: null,
+    aliasJids: null,
     createdAt: new Date('2026-01-01T00:00:00.000Z'),
     updatedAt: new Date('2026-01-02T00:00:00.000Z'),
     ...overrides,

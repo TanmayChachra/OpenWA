@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { Expose, plainToInstance } from 'class-transformer';
+import { Expose, Transform, plainToInstance } from 'class-transformer';
 import {
   IsBoolean,
   IsIn,
@@ -293,6 +293,26 @@ export class ClientMappingResponseDto {
   @ApiPropertyOptional({ nullable: true })
   @Expose()
   notes!: string | null;
+
+  @ApiPropertyOptional({
+    type: [String],
+    nullable: true,
+    description:
+      'docs/33 Phase C: every other jid WhatsApp has used for this same real contact (e.g. a @lid seen in a group), matched by phone rather than by jid. Informational — jid stays the address to use.',
+  })
+  @Expose()
+  // Stored as a JSON string on the entity; parsed here so API consumers get a real array instead of
+  // reimplementing the same JSON.parse + malformed-input guard client-mapping.service.ts already has.
+  @Transform(({ value }: { value: string | null }) => {
+    if (!value) return null;
+    try {
+      const parsed: unknown = JSON.parse(value);
+      return Array.isArray(parsed) ? parsed.filter((v): v is string => typeof v === 'string') : null;
+    } catch {
+      return null;
+    }
+  })
+  aliasJids!: string[] | null;
 
   @ApiProperty()
   @Expose()

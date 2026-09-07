@@ -14,14 +14,24 @@ export type ClientMappingStatus = 'active' | 'inactive';
  * enforced there for teammate rows, because both Postgres and SQLite treat every NULL sessionId as
  * distinct in a unique index — two teammate rows with the same jid and a NULL sessionId would not
  * collide. `ClientMappingService` enforces teammate-jid uniqueness itself before insert instead of
- * a DB constraint (a partial/filtered unique index would need dialect-specific syntax to stay in
- * lockstep with the migration-drift check); this is a low-frequency, admin-managed table, so the
- * service-level check's race window is an acceptable tradeoff, same shape as the automation rule
- * per-session cap ("bounds amplification, not an invariant").
+ * a DB constraint; this is a low-frequency, admin-managed table, so the service-level check's race
+ * window is an acceptable tradeoff, same shape as the automation rule per-session cap ("bounds
+ * amplification, not an invariant").
+ *
+ * A SECOND uniqueness rule (docs/33 Phase C, migration 1786600000000): (sessionId, phone) is also
+ * unique whenever phone is set — the backstop for the "same real person, two jids" bug
+ * (`ClientMappingService.resolveAndUpsert`, Phase B, is the app-layer fix; this is the DB-level one
+ * for any writer that skips it). Partial/filtered so group/teammate rows (`phone` always NULL) never
+ * collide with each other on it. The predicate quotes the column — an unquoted `where` reaches
+ * PostgreSQL verbatim and gets case-folded to `phone`, which happens to still match here since the
+ * column IS lowercase, but quoting stays consistent with every other identifier in this file and
+ * with the migration's own predicate (see message.entity.ts's `mediaPath` index for the case where
+ * skipping this actually breaks).
  */
 @Entity('client_mappings')
 @Index('IDX_client_mappings_sessionId', ['sessionId'])
 @Index('UQ_client_mappings_session_jid_kind', ['sessionId', 'jid', 'kind'], { unique: true })
+@Index('UQ_client_mappings_session_phone', ['sessionId', 'phone'], { unique: true, where: '"phone" IS NOT NULL' })
 export class ClientMapping {
   @PrimaryGeneratedColumn('uuid')
   id!: string;
@@ -78,6 +88,16 @@ export class ClientMapping {
   /** Free-text context — this is what makes the G Brain export useful as "context for people". */
   @Column({ type: 'text', nullable: true })
   notes!: string | null;
+
+  /**
+   * JSON array of every other jid WhatsApp has used to address this same real contact (docs/33 Phase
+   * C) — e.g. a `@lid` seen in a group's participant list, once resolveAndUpsert matches it to this
+   * row by phone instead of creating a second row for it. Informational only: `jid` stays the one
+   * address every other part of the app reads/writes through. Nullable/never set for group/teammate
+   * rows, which have no phone to match aliases against in the first place.
+   */
+  @Column({ type: 'text', nullable: true })
+  aliasJids!: string | null;
 
   @CreateDateColumn()
   createdAt!: Date;

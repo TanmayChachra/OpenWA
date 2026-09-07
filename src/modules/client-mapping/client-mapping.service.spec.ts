@@ -219,9 +219,47 @@ describe('ClientMappingService', () => {
       expect(byLidJid.created).toBe(false);
       expect(byLidJid.mapping.id).toBe(byPhoneJid.mapping.id);
       expect(byLidJid.mapping.jid).toBe('919999367045@c.us'); // untouched — not overwritten with the @lid jid
+      // docs/33 Phase C: the @lid jid isn't silently discarded — it's remembered as an alias of the
+      // winning row instead.
+      expect(byLidJid.mapping.aliasJids).toBe(JSON.stringify(['30378471473326@lid']));
 
       const rows = await service.findAll({ sessionId: 's1' });
       expect(rows).toHaveLength(1);
+    });
+
+    it('does not duplicate an alias jid already recorded on a repeat match', async () => {
+      await service.resolveAndUpsert({ sessionId: 's1', jid: '919999367045@c.us', kind: 'contact' });
+      await service.resolveAndUpsert({
+        sessionId: 's1',
+        jid: '30378471473326@lid',
+        kind: 'contact',
+        phoneHint: '919999367045',
+      });
+      const repeatOfSameLid = await service.resolveAndUpsert({
+        sessionId: 's1',
+        jid: '30378471473326@lid',
+        kind: 'contact',
+        phoneHint: '919999367045',
+      });
+      expect(repeatOfSameLid.mapping.aliasJids).toBe(JSON.stringify(['30378471473326@lid']));
+    });
+
+    it('accumulates multiple distinct alias jids for the same phone', async () => {
+      await service.resolveAndUpsert({ sessionId: 's1', jid: '919999367045@c.us', kind: 'contact' });
+      await service.resolveAndUpsert({
+        sessionId: 's1',
+        jid: '111@lid',
+        kind: 'contact',
+        phoneHint: '919999367045',
+      });
+      const { mapping } = await service.resolveAndUpsert({
+        sessionId: 's1',
+        jid: '222@lid',
+        kind: 'contact',
+        phoneHint: '919999367045',
+      });
+      const aliases = JSON.parse(mapping.aliasJids as string) as string[];
+      expect(aliases.sort()).toEqual(['111@lid', '222@lid'].sort());
     });
 
     it('creates a group row keyed by jid — groups never resolve a phone', async () => {
