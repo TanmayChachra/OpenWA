@@ -36,6 +36,8 @@ for a future analytics feature), `notes` (free text), and `aliasJids` (see §32.
 
 ## 32.3 Tagging from the dashboard
 
+![Client Mapping list view](./images/client-mapping-list.png)
+
 The Client Mapping page (admin-only) supports:
 
 - Manual create/edit/delete with search and filters by kind/company.
@@ -49,6 +51,8 @@ The Client Mapping page (admin-only) supports:
   in later). An option also imports each group's _member list_, not just the group itself — useful
   because someone who only ever posts inside a group, and never has a 1:1 chat with this number,
   has no chat of their own to import from otherwise.
+
+![Add Mapping form](./images/client-mapping-add-form.png)
 
 ## 32.4 Auto-tagging
 
