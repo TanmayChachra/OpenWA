@@ -134,28 +134,34 @@ change).
   render markdown with front-matter: `company`, `team`, `role`, `kind` — the same fields
   from Phase 1 — so GBrain's entity layer can self-wire the knowledge graph on them),
   `gbrain-sink-cli.ts` and `gbrain-sink-webhook.ts` implementing `GBrainSink`.
-- **Export cadence — two schedules plus an adaptable range, not one fixed interval:**
-  - `daily` (primary, default ON): every 24h, exports the delta since the last successful
-    export per mapped chat (new messages + any changed mapping rows).
-  - `weekly` (secondary, default ON): every 7d, exports a fuller rollup per client/group
-    (last 7 days of context, not just the delta) — useful for GBrain's `synthesize` verb
-    to build a weekly-shaped summary.
-  - **Adaptable range:** both schedules are config entries (`{ name, cron, lookbackDays }`)
-    in an `exportProfiles` array, not hardcoded — add a third profile (e.g. monthly, or an
-    ad-hoc backfill) by adding a config entry, no code change. The manual trigger endpoint
-    (`POST /gbrain-export/run`) also accepts an explicit `lookbackDays` override for
-    one-off ranges (e.g. "export everything for this new client since onboarding").
+- **Export cadence — one scheduled profile plus an on-demand backfill, not a fixed
+  weekly/daily split:**
+  - `daily` (primary, default ON — the only profile shipped enabled): every 24h, exports
+    the delta since the last successful export per mapped chat (new messages + any
+    changed mapping rows).
+  - No `weekly` profile ships. A rollup cadence (weekly, monthly, or anything else) is
+    left for later — see Adaptable range below for how to add one without a code change
+    when that day comes.
+  - **Backfill allowance:** `POST /gbrain-export/run` accepts an explicit `lookbackDays`
+    override for one-off ranges (e.g. "export everything for this new client since
+    onboarding", or a manual catch-up after the job was disabled for a while) — this is
+    the operational safety valve daily-only cadence needs, since there is no weekly
+    rollup to fall back on if a day is missed.
+  - **Adaptable range:** `daily` is a config entry (`{ name, cron, lookbackDays }`) in an
+    `exportProfiles` array, not hardcoded — adding `monthly` (or `weekly`, or anything
+    else) later is one config entry, no code change. Intentionally left for later rather
+    than shipped now.
 - Reuses the integration module's retention/reconciler pattern for "did this export
   actually land" bookkeeping, rather than a new one.
 
 **Rollback:** disable via config flag (job simply stops running); the export job never
 writes to any table another feature depends on, so no downstream cleanup needed.
 
-**Exit criteria:** manually trigger both the `daily` and `weekly` profiles, confirm the
-rendered markdown carries correctly-mapped `company`/`team`/`role` front-matter for a test
-contact/group, confirm the CLI sink and webhook sink both accept the same payload shape,
-confirm a disabled flag produces zero exports, confirm a manual `lookbackDays` override
-produces the wider range without touching the scheduled profiles.
+**Exit criteria:** manually trigger the `daily` profile, confirm the rendered markdown
+carries correctly-mapped `company`/`team`/`role` front-matter for a test contact/group,
+confirm the CLI sink and webhook sink both accept the same payload shape, confirm a
+disabled flag produces zero exports, confirm a manual `lookbackDays` backfill override
+produces the wider range without touching the scheduled `daily` profile.
 
 ---
 
