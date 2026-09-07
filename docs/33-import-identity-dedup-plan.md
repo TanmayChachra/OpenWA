@@ -1,6 +1,14 @@
 # 33 — Import Identity De-Duplication Plan
 
-**Status: Phase A done (commit 1eed7550), Phase B done (commit be8bada8). Phase C/D not started.**
+**Status: Phase A done (1eed7550), Phase B done (be8bada8), Phase C done (a700c8b5). Phase D not started.**
+
+Phase C's migration (1786600000000) merges pre-existing duplicates inline —
+required, since the unique index can't be created over live duplicates. That
+IS Phase D's core merge logic, already applied for every environment that
+runs this migration. Phase D's remaining scope: a standalone one-off script
+for anyone who wants to preview/dry-run the merge before a migration runs
+non-interactively in their deploy pipeline, and updating this doc's Phase D
+section accordingly — not new merge logic.
 
 Phase B shipped a variant of its original endpoint sketch: `POST
 /client-mappings/resolve-and-upsert` dedupes by phone using the entity's
