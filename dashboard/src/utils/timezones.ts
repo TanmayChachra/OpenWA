@@ -22,8 +22,8 @@ const FALLBACK_ZONES = [
  * Verified live: this varies by ICU/Node version — some runtimes enumerate the modern IANA name
  * ('Asia/Kolkata'), others still return the legacy tzdata link name ('Asia/Calcutta') for the exact
  * same zone. Both resolve identically in Intl.DateTimeFormat, so this just renames the legacy form
- * to the one actually referenced elsewhere in this app (the default value below, the backend's own
- * validator/docs) rather than showing a confusing 'Calcutta' entry with no matching 'Kolkata' option.
+ * to the modern one (the backend's own validator/docs use the modern name too) rather than showing
+ * a confusing 'Calcutta' entry that a stored 'Kolkata' value would never match against.
  */
 export function listTimezones(): string[] {
   const zones =

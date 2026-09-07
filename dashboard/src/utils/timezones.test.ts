@@ -2,11 +2,10 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { groupedTimezones, listTimezones } from './timezones.ts';
 
-test('the default zone (Asia/Kolkata) is always selectable, even on a runtime that only enumerates the legacy Asia/Calcutta link name', () => {
+test('Asia/Kolkata is always selectable, even on a runtime that only enumerates the legacy Asia/Calcutta link name', () => {
   // Verified live: Intl.supportedValuesOf('timeZone') returns 'Asia/Calcutta' on this runtime's ICU
-  // build, not the modern 'Asia/Kolkata' the rest of the app defaults to and documents — both name
-  // the identical zone, but a select whose only matching <option> is 'Calcutta' silently shows no
-  // selection for a form defaulted to 'Kolkata'.
+  // build, not the modern 'Asia/Kolkata' — both name the identical zone, but a select whose only
+  // matching <option> is 'Calcutta' would silently show no selection for a stored 'Kolkata' value.
   const zones = listTimezones();
   assert.ok(zones.includes('Asia/Kolkata'), 'Asia/Kolkata missing from the zone list');
   assert.ok(!zones.includes('Asia/Calcutta'), 'legacy Asia/Calcutta should be renamed, not listed alongside it');
