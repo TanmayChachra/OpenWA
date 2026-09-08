@@ -87,6 +87,14 @@ export const BLANK_SHADOWED_ENV_KEYS: string[] = [
   // Client Mapping auto-tag toggle (docs/32) — same reasoning: blank-forwarded so a value set in
   // .env / data/.env.generated is never shadowed by an unset compose var.
   'CLIENT_MAPPING_AUTO_TAG_ENABLED',
+  'GBRAIN_EXPORT_ENABLED',
+  'GBRAIN_EXPORT_SINK',
+  'GBRAIN_CLI_PATH',
+  'GBRAIN_WEBHOOK_URL',
+  'GBRAIN_WEBHOOK_TOKEN',
+  'GBRAIN_WEBHOOK_TIMEOUT_MS',
+  'GBRAIN_EXPORT_DEFAULT_LOOKBACK_DAYS',
+  'GBRAIN_EXPORT_INTERVAL_MS',
   // Behaviour flags with no dashboard route: before they were forwarded, a value set in .env simply
   // never reached the container. They are blank-forwarded like everything else here so the forward
   // itself cannot pin them off.

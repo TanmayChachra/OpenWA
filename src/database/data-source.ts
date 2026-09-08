@@ -34,6 +34,7 @@ const dataEntities = [
   sourceGlob('..', 'modules', 'status-store', '**', '*.entity{.ts,.js}'),
   sourceGlob('..', 'modules', 'automation', '**', '*.entity{.ts,.js}'),
   sourceGlob('..', 'modules', 'client-mapping', '**', '*.entity{.ts,.js}'),
+  sourceGlob('..', 'modules', 'gbrain-export', '**', '*.entity{.ts,.js}'),
 ];
 const dataMigrations = [sourceGlob('migrations', '*{.ts,.js}')];
 
