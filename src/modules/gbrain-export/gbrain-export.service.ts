@@ -60,17 +60,22 @@ export function createGbrainSink(config: {
 }
 
 /**
- * The GBrain scheduled export (docs/32 Phase 2): for every mapped contact/group, renders its
- * Client Mapping row plus the messages since that jid's last successful export (or since
+ * The GBrain scheduled export (docs/32 Phase 2): for every mapped GROUP, renders its Client
+ * Mapping row plus the messages since that jid's last successful export (or since
  * `lookbackDays` ago, for a manual backfill / first-ever export) as one markdown document, and
  * hands it to the configured sink. Checkpoints only advance past messages a delivery actually
  * confirmed — `dryRun` never touches them at all, so previewing output is side-effect-free.
  *
- * One document is rendered and (optionally) sent PER MAPPED CONTACT/GROUP, always — including a
- * jid with zero new messages this run. That is deliberate: the front matter always reflects the
- * mapping's CURRENT company/team/role/notes, so a metadata-only edit (someone corrected a client's
- * team in the dashboard) still reaches GBrain on the next scheduled run without a separate
- * change-detection path to get wrong.
+ * Groups/spaces only, never a personal 1:1 chat (Unbundl_GBrain/docs/ARCHITECTURE.md, "Phase
+ * 1A") — `contact`-kind mappings are excluded even though they carry the exact same
+ * company/team/role tagging a group does; only group-level conversations leave this system
+ * into the shared GBrain knowledge base.
+ *
+ * One document is rendered and (optionally) sent PER MAPPED GROUP, always — including a jid
+ * with zero new messages this run. That is deliberate: the front matter always reflects the
+ * mapping's CURRENT company/team/role/notes, so a metadata-only edit (someone corrected a
+ * client's team in the dashboard) still reaches GBrain on the next scheduled run without a
+ * separate change-detection path to get wrong.
  */
 @Injectable()
 export class GbrainExportService {
@@ -106,14 +111,16 @@ export class GbrainExportService {
         status: 'active',
       },
     });
-    // Groups and teammates are directory entries, not chats with their own message history —
-    // a teammate has no sessionId/jid on any WhatsApp chat to pull messages from, and a group's
-    // "conversation" is really its members' individual messages, already exported under their own
-    // contact rows. Only `contact` rows have a 1:1 chatId this query can pull from.
-    const contactMappings = mappingRows.filter(m => m.kind === 'contact' && m.sessionId);
+    // Groups/spaces only, never a personal 1:1 chat (Unbundl_GBrain/docs/ARCHITECTURE.md,
+    // "Phase 1A"). `Message.chatId` is the group's own JID for a group message (with a
+    // separate `author` field for which participant sent it — message.entity.ts), so this
+    // query already returns a group's full history correctly; a teammate row has no
+    // sessionId/jid on any WhatsApp chat at all (not a chat, an internal person record) and
+    // is excluded the same way `contact` now is.
+    const groupMappings = mappingRows.filter(m => m.kind === 'group' && m.sessionId);
 
     const documents: GbrainExportDocumentResult[] = [];
-    for (const mapping of contactMappings) {
+    for (const mapping of groupMappings) {
       try {
         documents.push(await this.exportOne(mapping, options, cfg.defaultLookbackDays, sink, dryRun, now));
       } catch (err) {
@@ -194,7 +201,7 @@ export class GbrainExportService {
       {
         sessionId,
         jid: mapping.jid,
-        kind: 'contact',
+        kind: 'group',
         name: mapping.name,
         phone: mapping.phone,
         company: mapping.company,

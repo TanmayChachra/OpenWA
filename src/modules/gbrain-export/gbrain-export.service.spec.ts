@@ -60,14 +60,16 @@ describe('GbrainExportService', () => {
 
   const sentBodies = () => fetchMock.mock.calls.map(([, init]) => init?.body as string);
 
+  // Groups only, never a 1:1 contact (Unbundl_GBrain/docs/ARCHITECTURE.md, "Phase 1A") — default
+  // kind/jid here are group-shaped (@g.us) since that's the only kind the service now exports.
   const seedMapping = async (over: Partial<ClientMapping> = {}): Promise<ClientMapping> =>
     mappings.save(
       mappings.create({
         sessionId: 's1',
-        jid: '628111@c.us',
-        kind: 'contact',
+        jid: 'group1@g.us',
+        kind: 'group',
         name: 'Alice',
-        phone: '628111',
+        phone: null,
         company: 'Acme',
         team: null,
         role: null,
@@ -86,9 +88,9 @@ describe('GbrainExportService', () => {
     return messages.save(
       messages.create({
         sessionId: 's1',
-        chatId: '628111@c.us',
+        chatId: 'group1@g.us',
         from: '628111@c.us',
-        to: 'me',
+        to: 'group1@g.us',
         body: `hello ${n}`,
         type: 'text',
         direction: MessageDirection.INCOMING,
@@ -98,8 +100,8 @@ describe('GbrainExportService', () => {
     );
   };
 
-  it('skips group and teammate mappings — only contact rows have a chat to pull messages from', async () => {
-    await seedMapping({ kind: 'group', jid: 'group1@g.us' });
+  it('skips contact and teammate mappings — only group rows are exported to GBrain (Phase 1A)', async () => {
+    await seedMapping({ kind: 'contact', jid: '628111@c.us', phone: '628111' });
     await seedMapping({ kind: 'teammate', sessionId: null, jid: 'alice@internal' });
 
     const result = await service.run({});
@@ -107,7 +109,7 @@ describe('GbrainExportService', () => {
     expect(result.documentsRendered).toBe(0);
   });
 
-  it('renders every active contact mapping in dry-run without ever calling the sink', async () => {
+  it('renders every active group mapping in dry-run without ever calling the sink', async () => {
     await seedMapping();
     await seedMessage({ timestamp: Date.now() - 1000 });
 
@@ -142,10 +144,10 @@ describe('GbrainExportService', () => {
     const msg = await seedMessage({ timestamp: Date.now() - 1000 });
 
     await service.run({ dryRun: true });
-    expect(await state.findOne({ where: { sessionId: 's1', jid: '628111@c.us' } })).toBeNull();
+    expect(await state.findOne({ where: { sessionId: 's1', jid: 'group1@g.us' } })).toBeNull();
 
     await service.run({ dryRun: false });
-    const checkpoint = await state.findOne({ where: { sessionId: 's1', jid: '628111@c.us' } });
+    const checkpoint = await state.findOne({ where: { sessionId: 's1', jid: 'group1@g.us' } });
     expect(checkpoint?.lastExportedMessageTimestamp).toBe(msg.timestamp);
   });
 
@@ -183,7 +185,7 @@ describe('GbrainExportService', () => {
     const result = await service.run({ dryRun: false });
 
     expect(result.documentsFailed).toBe(1);
-    expect(await state.findOne({ where: { sessionId: 's1', jid: '628111@c.us' } })).toBeNull();
+    expect(await state.findOne({ where: { sessionId: 's1', jid: 'group1@g.us' } })).toBeNull();
   });
 
   it('caps a single document at MAX_MESSAGES_PER_DOCUMENT and advances the checkpoint only to the newest included message', async () => {
@@ -196,13 +198,13 @@ describe('GbrainExportService', () => {
     const result = await service.run({ dryRun: false });
 
     expect(result.documents[0].messageCount).toBe(500);
-    const checkpoint = await state.findOne({ where: { sessionId: 's1', jid: '628111@c.us' } });
+    const checkpoint = await state.findOne({ where: { sessionId: 's1', jid: 'group1@g.us' } });
     expect(checkpoint?.lastExportedMessageTimestamp).toBe(base + 499);
   });
 
   it('one mapping throwing does not stop the rest of the batch from being exported', async () => {
-    await seedMapping({ jid: 'bad@c.us', phone: '111' });
-    await seedMapping({ jid: 'good@c.us', phone: '222' });
+    await seedMapping({ jid: 'bad@g.us' });
+    await seedMapping({ jid: 'good@g.us' });
     const findSpy = jest.spyOn(messages, 'find').mockImplementationOnce(() => {
       throw new Error('query blew up');
     });
@@ -211,18 +213,18 @@ describe('GbrainExportService', () => {
 
     expect(result.documentsRendered).toBe(2);
     expect(result.documentsFailed).toBe(1);
-    expect(result.documents.find(d => d.jid === 'bad@c.us')?.error).toContain('query blew up');
-    expect(result.documents.find(d => d.jid === 'good@c.us')?.delivered).toBe(true);
+    expect(result.documents.find(d => d.jid === 'bad@g.us')?.error).toContain('query blew up');
+    expect(result.documents.find(d => d.jid === 'good@g.us')?.delivered).toBe(true);
     findSpy.mockRestore();
   });
 
   it('filters to a single sessionId when one is requested', async () => {
-    await seedMapping({ sessionId: 's1', jid: 'a@c.us' });
-    await seedMapping({ sessionId: 's2', jid: 'b@c.us' });
+    await seedMapping({ sessionId: 's1', jid: 'a@g.us' });
+    await seedMapping({ sessionId: 's2', jid: 'b@g.us' });
 
     const result = await service.run({ sessionId: 's1' });
 
     expect(result.documentsRendered).toBe(1);
-    expect(result.documents[0].jid).toBe('a@c.us');
+    expect(result.documents[0].jid).toBe('a@g.us');
   });
 });
