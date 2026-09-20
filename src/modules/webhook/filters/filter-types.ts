@@ -57,6 +57,8 @@ const MESSAGE_TYPE_FLAGS: Record<MessageType, true> = {
   poll: true,
   call: true,
   revoked: true,
+  order: true,
+  product: true,
   masked: true,
   unknown: true,
 };
@@ -96,6 +98,16 @@ export const FILTER_FIELDS: Record<string, FieldDefinition[]> = {
       kind: 'id',
       operators: ID_OPERATORS,
       resolve: data => str(data.to),
+    },
+    {
+      // Conversation JID (DM or group). Every payload in this family carries it: `IncomingMessage`
+      // declares `chatId` required, and the edited, reaction and revoked events set it explicitly.
+      // Deliberately without a fall back to `from`, which is the sender on a DM and this session on
+      // an outbound message, so it would silently scope the filter to the wrong conversation.
+      field: 'chatId',
+      kind: 'id',
+      operators: ID_OPERATORS,
+      resolve: data => str(data.chatId),
     },
     {
       field: 'body',

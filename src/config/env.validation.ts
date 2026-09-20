@@ -421,6 +421,10 @@ export function validateEnv(config: EnvConfig): EnvConfig {
     // the webhook payload an integrator receives is not the one the operator configured.
     'WEBHOOK_SSRF_PROTECT',
     'WEBHOOK_CONTACT_DETAILS',
+    // `!== 'false'`: a typo keeps caller-supplied URL fetches on the session proxy, the safe value,
+    // but an operator whose proxy cannot reach arbitrary media hosts asked for the opposite and
+    // would see every send-by-URL on a proxied session fail instead.
+    'SESSION_PROXY_URL_FETCH',
     // Engine behaviour flags: a typo leaves full-history sync off, or leaves the account marked
     // online on connect (#871 — it suppresses notifications on the operator's own phone).
     'BAILEYS_SYNC_FULL_HISTORY',
@@ -478,6 +482,20 @@ export function validateEnv(config: EnvConfig): EnvConfig {
   const provider = config['SEARCH_PROVIDER'] as string | undefined;
   if (provider !== undefined && provider !== '' && !['auto', 'builtin-fts', 'none'].includes(provider)) {
     errors.push(`SEARCH_PROVIDER must be one of: auto, builtin-fts, none (got ${JSON.stringify(provider)})`);
+  }
+
+  // LOG_LEVEL is read in main.ts by exact match after trim+toLowerCase, so any casing works today
+  // and only a MISSPELLING differs: every unrecognised value silently means INFO, which is MORE
+  // logging than the operator asked for (Nest-adjacent spellings like 'log', 'trace' or 'fatal'
+  // included, none of them this repo's vocabulary). Validate the normalised form, mirroring the
+  // read site exactly (same philosophy as MEDIA_DOWNLOAD_ENABLED above): nothing that works today
+  // is refused, and a misspelling fails the boot instead of quietly logging at info.
+  const LOG_LEVEL_VALUES = ['error', 'warn', 'info', 'debug', 'verbose'];
+  const rawLogLevel = str('LOG_LEVEL');
+  if (rawLogLevel !== undefined && !LOG_LEVEL_VALUES.includes(rawLogLevel.toLowerCase())) {
+    errors.push(
+      `LOG_LEVEL must be one of ${LOG_LEVEL_VALUES.map(v => `"${v}"`).join(', ')} (got ${JSON.stringify(rawLogLevel)})`,
+    );
   }
 
   if (errors.length > 0) {

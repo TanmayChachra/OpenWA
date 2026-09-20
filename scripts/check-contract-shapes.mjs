@@ -135,6 +135,7 @@ const MAPPINGS = {
     UpsertContactRequest: 'UpsertContactDto',
     UpsertLabelRequest: 'UpsertLabelDto',
     VotePollRequest: 'VotePollDto',
+    WebhookDeliveryFailure: 'WebhookDeliveryFailureDto',
     WebhookFilterCondition: 'WebhookFilterConditionDto',
     WebhookResponse: 'WebhookResponseDto',
   },
@@ -170,11 +171,11 @@ const MAPPINGS = {
  * these floors as pairs are added makes the shrink loud.
  */
 const MINIMUM_MAPPED = {
-  'sdk/javascript/src/types.ts': 82,
+  'sdk/javascript/src/types.ts': 83,
   'dashboard/src/services/api.ts': 21,
-  'sdk/python/openwa/types.py': 77,
-  'sdk/go': 78,
-  'sdk/java': 82,
+  'sdk/python/openwa/types.py': 79,
+  'sdk/go': 79,
+  'sdk/java': 83,
 };
 
 /** Known drift, deliberately not gated yet — each line is a to-adjudicate follow-up. */
@@ -220,6 +221,7 @@ const PYTHON_MAPPING = {
   BulkMessageItem: 'BulkMessageItemDto',
   BulkMessageResponse: 'BulkMessageResponseDto',
   CallLinkResponse: 'CallLinkResponseDto',
+  ChatHistoryMessage: 'ChatHistoryMessageDto',
   ChatSummary: 'ChatSummaryDto',
   CreateCallLinkRequest: 'CreateCallLinkDto',
   CreateChannelRequest: 'CreateChannelDto',
@@ -286,6 +288,7 @@ const PYTHON_MAPPING = {
   UpsertContactRequest: 'UpsertContactDto',
   UpsertLabelRequest: 'UpsertLabelDto',
   VotePollRequest: 'VotePollDto',
+  WebhookDeliveryFailure: 'WebhookDeliveryFailureDto',
   WebhookResponse: 'WebhookResponseDto',
 };
 
@@ -368,6 +371,7 @@ const GO_MAPPING = {
   UpsertContactRequest: 'UpsertContactDto',
   UpsertLabelRequest: 'UpsertLabelDto',
   VotePollRequest: 'VotePollDto',
+  WebhookDeliveryFailure: 'WebhookDeliveryFailureDto',
   WebhookResponse: 'WebhookResponseDto',
 };
 
@@ -454,6 +458,7 @@ const JAVA_MAPPING = {
   UpsertContactRequest: 'UpsertContactDto',
   UpsertLabelRequest: 'UpsertLabelDto',
   VotePollRequest: 'VotePollDto',
+  WebhookDeliveryFailure: 'WebhookDeliveryFailureDto',
   WebhookResponse: 'WebhookResponseDto',
 };
 
