@@ -3,25 +3,28 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { Trans, useTranslation } from 'react-i18next';
 import { AlertCircle, AlertTriangle, Download, Loader2, Pencil, Plus, Search, Trash2, Users } from 'lucide-react';
-import { clientMappingApi, contactApi, groupApi, sessionApi } from '../services/api';
-import type {
-  ClientMapping,
-  ClientMappingKind,
-  ClientMappingPayload,
-  ClientMappingStatus,
-  ResolveAndUpsertClientMappingPayload,
-} from '../services/api';
-import { CLIENT_MAPPING_KINDS, CLIENT_MAPPING_STATUSES } from '../services/api';
+import { contactApi, sessionApi } from '../services/api';
+import {
+  CLIENT_MAPPING_KINDS,
+  CLIENT_MAPPING_STATUSES,
+  clientMappingApi,
+  groupApi,
+  type ClientMapping,
+  type ClientMappingKind,
+  type ClientMappingPayload,
+  type ClientMappingStatus,
+  type ResolveAndUpsertClientMappingPayload,
+} from '../fork/clientMappingApi';
 import { useDocumentTitle } from '../hooks/useDocumentTitle';
 import { useRole } from '../hooks/useRole';
 import { useToast } from '../hooks/useToast';
+import { useSessionsQuery } from '../hooks/queries';
 import {
   useClientMappingsQuery,
   useCreateClientMappingMutation,
   useDeleteClientMappingMutation,
-  useSessionsQuery,
   useUpdateClientMappingMutation,
-} from '../hooks/queries';
+} from '../fork/clientMappingQueries';
 import { PageHeader } from '../components/PageHeader';
 import { Modal } from '../components/Modal';
 import { groupedTimezones } from '../utils/timezones';

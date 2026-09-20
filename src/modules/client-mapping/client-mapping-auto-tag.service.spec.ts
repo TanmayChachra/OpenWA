@@ -2,6 +2,7 @@
 // dedupe against a row that already exists, and never let a DB failure escape into the receive
 // path — the same contract automation-rules' evaluateInbound already carries.
 import { DataSource } from 'typeorm';
+import { HookManager } from '../../core/hooks/hook-manager.service';
 import { EngineRegistry } from '../../engine/engine-registry.service';
 import { ClientMappingAutoTagService } from './client-mapping-auto-tag.service';
 import { ClientMappingService } from './client-mapping.service';
@@ -128,5 +129,54 @@ describe('ClientMappingAutoTagService', () => {
     const broken = new ClientMappingAutoTagService(brokenMappings);
 
     await expect(broken.evaluateInbound('s1', inbound())).resolves.toBeUndefined();
+  });
+
+  // Core no longer calls this service; it rides the `message:persisted` hook. These run the real
+  // HookManager end to end so a change to the hook payload shape fails here, not silently in prod.
+  describe('via the message:persisted hook', () => {
+    let hooks: HookManager;
+    let upsert: jest.SpyInstance;
+
+    beforeEach(() => {
+      hooks = new HookManager();
+      const mappings = new ClientMappingService(
+        ds.getRepository(ClientMapping),
+        new ClientMappingIdentityService(new EngineRegistry()),
+      );
+      upsert = jest.spyOn(mappings, 'resolveAndUpsert');
+      service = new ClientMappingAutoTagService(mappings, undefined, hooks);
+      service.onModuleInit();
+    });
+
+    const persisted = (message: Record<string, unknown>) =>
+      hooks.execute('message:persisted', { sessionId: 's1', message }, { sessionId: 's1', source: 'test' });
+
+    it('tags an inbound 1:1 chat, using the chat name as the name hint', async () => {
+      await persisted({ direction: 'incoming', chatId: '628111@c.us', chatName: 'Alice' });
+      expect(upsert).toHaveBeenCalledWith({ sessionId: 's1', jid: '628111@c.us', kind: 'contact', nameHint: 'Alice' });
+      expect(await ds.getRepository(ClientMapping).count()).toBe(1);
+    });
+
+    it('tags an inbound group without borrowing the sender name as the group name', async () => {
+      await persisted({ direction: 'incoming', chatId: '120363@g.us', chatName: 'Some Sender' });
+      expect(upsert).toHaveBeenCalledWith({ sessionId: 's1', jid: '120363@g.us', kind: 'group', nameHint: undefined });
+    });
+
+    it('ignores a phone-composed send (outgoing rows also fire message:persisted)', async () => {
+      await persisted({ direction: 'outgoing', chatId: '628111@c.us', chatName: 'Alice' });
+      expect(upsert).not.toHaveBeenCalled();
+    });
+
+    it('never fails the hook chain when tagging throws', async () => {
+      upsert.mockRejectedValueOnce(new Error('db down'));
+      const result = await persisted({ direction: 'incoming', chatId: '628111@c.us' });
+      expect(result.continue).toBe(true);
+    });
+
+    it('stops listening once destroyed', async () => {
+      service.onModuleDestroy();
+      await persisted({ direction: 'incoming', chatId: '628111@c.us' });
+      expect(upsert).not.toHaveBeenCalled();
+    });
   });
 });
