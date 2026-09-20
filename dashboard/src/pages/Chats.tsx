@@ -273,7 +273,9 @@ export function Chats() {
     activePhoneDisplay ?? (resolvedPhoneQ.data ? formatPhoneForDisplay(resolvedPhoneQ.data) : null);
   // Raw digits (not the pretty-printed display string) for prefilling a Client Mapping — same
   // resolution order as the header line above, minus the cosmetic formatting.
-  const activeRawPhone = activeChat ? (parsePhoneFromJid(activeChat.id) ?? resolvedPhoneQ.data ?? undefined) : undefined;
+  const activeRawPhone = activeChat
+    ? (parsePhoneFromJid(activeChat.id) ?? resolvedPhoneQ.data ?? undefined)
+    : undefined;
 
   // "Tag as Client" from the chat window: WhatsApp already hands us a display name for most chats
   // (pushName — the name the other party set for themselves — or, if the number is in this

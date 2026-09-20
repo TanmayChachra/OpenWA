@@ -27,7 +27,10 @@ test('every zone appears in exactly one region group, and the region is the part
 test('groups are sorted by region, and zones within a group are sorted', () => {
   const groups = groupedTimezones();
   const regions = groups.map(g => g.region);
-  assert.deepEqual(regions, [...regions].sort((a, b) => a.localeCompare(b)));
+  assert.deepEqual(
+    regions,
+    [...regions].sort((a, b) => a.localeCompare(b)),
+  );
   for (const group of groups) {
     assert.deepEqual(group.zones, [...group.zones].sort());
   }

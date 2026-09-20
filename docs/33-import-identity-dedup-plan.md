@@ -27,7 +27,6 @@ already uses (see session-lid-resolver.service.ts) — so a lid resolved once
 anywhere in the app (a message, an import, this endpoint) is cached for every
 other caller too, not just within one import run.
 
-
 Bug root: Lakshye Kapoor two rows, `919999367045@c.us` + `30378471473326@lid`. WA
 own contact store hold two models same real jid, diff `number` field. Group
 participant list hand raw unresolved `@lid` jid, never c.us form. 3 separate
@@ -80,6 +79,7 @@ body: { sessionId, jid, kind, nameHint?, phoneHint? }
 ```
 
 Server does, in order:
+
 1. If `kind === 'contact'` and jid is `@lid`: call engine `resolveContactPhone`
    server-side (already exists, `wwebjs-contacts.ts:173`) — one round trip,
    not per-caller reimplementation.
@@ -140,6 +140,7 @@ BEFORE the unique index can apply — see Phase D.
    ongoing reconciliation.
 
 ## Test coverage (what "regression test" means here — no unit-test harness
+
 exists yet for ClientMappings.tsx, per this session; do NOT skip verification,
 substitute live-API verification same rigor as a unit test would give)
 

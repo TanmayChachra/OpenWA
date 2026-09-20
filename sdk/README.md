@@ -44,8 +44,8 @@ All five SDKs expose the same fluent resource surface:
 > ⚠️ Endpoints requiring an `OPERATOR`-level API key are noted in the inline
 > docs. Deliberately **not** exposed, matching `docs/18-sdk-design.md` exactly:
 > `auth`/api-keys, `audit`, `settings`, `stats`, `automation`, `infra`,
-> `plugins`, the `integration` management routes, `metrics`, `mcp`, `ingress`
-> and `docker`. These two lists have to agree — they did not, in both
+> `plugins`, the `integration` management routes, `client-mappings`,
+> `gbrain-export`, `metrics`, `mcp`, `ingress` and `docker`. These two lists have to agree — they did not, in both
 > directions, and a list that disagrees with its own design doc reads as an
 > accidental omission rather than a decision.
 >

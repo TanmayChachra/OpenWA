@@ -420,7 +420,7 @@ test('mergeReactionSnapshot stays undefined when neither side knows anything', (
 
 import { buildMentionNameMap, resolveMentions } from './chatMessages.ts';
 
-test('buildMentionNameMap keys on the author JID\'s local part, stripped of a :device suffix', () => {
+test("buildMentionNameMap keys on the author JID's local part, stripped of a :device suffix", () => {
   const map = buildMentionNameMap([
     msg({ author: '166868170059932@lid', chatName: 'Sneha Desai' }),
     msg({ author: '628111@c.us:7', chatName: 'Group Admin' }),
@@ -430,16 +430,16 @@ test('buildMentionNameMap keys on the author JID\'s local part, stripped of a :d
 });
 
 test('buildMentionNameMap skips a row with no author or no resolved name', () => {
-  const map = buildMentionNameMap([msg({ author: undefined, chatName: 'Sneha Desai' }), msg({ author: '628@c.us', chatName: undefined })]);
+  const map = buildMentionNameMap([
+    msg({ author: undefined, chatName: 'Sneha Desai' }),
+    msg({ author: '628@c.us', chatName: undefined }),
+  ]);
   assert.equal(map.size, 0);
 });
 
 test('resolveMentions replaces a matched @<digits> token with @<FirstName>', () => {
   const names = buildMentionNameMap([msg({ author: '166868170059932@lid', chatName: 'Sneha Desai' })]);
-  assert.equal(
-    resolveMentions('Hi @166868170059932, any update?', names),
-    'Hi @Sneha, any update?',
-  );
+  assert.equal(resolveMentions('Hi @166868170059932, any update?', names), 'Hi @Sneha, any update?');
 });
 
 test('resolveMentions leaves an unmatched @<digits> token exactly as WhatsApp sent it', () => {

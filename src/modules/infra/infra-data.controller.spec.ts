@@ -43,6 +43,8 @@ import { WebhookOutboxEvent } from '../webhook/entities/webhook-outbox-event.ent
 import { IntegrationDeliveryFailure } from '../integration/entities/integration-delivery-failure.entity';
 import { StatusUpdate } from '../status-store/entities/status-update.entity';
 import { AutomationRule } from '../automation/entities/automation-rule.entity';
+import { ClientMapping } from '../client-mapping/entities/client-mapping.entity';
+import { GbrainExportState } from '../gbrain-export/entities/gbrain-export-state.entity';
 import { AuditAction } from '../audit/entities/audit-log.entity';
 import { BadRequestException } from '@nestjs/common';
 
@@ -81,6 +83,8 @@ describe('InfraDataController.importData round-trips export-data (no silent mess
         IntegrationDeliveryFailure,
         StatusUpdate,
         AutomationRule,
+        ClientMapping,
+        GbrainExportState,
       ],
       synchronize: true,
     });
@@ -1222,6 +1226,8 @@ describe('InfraDataController.import/export preserves every data-DB table', () =
         IntegrationDeliveryFailure,
         StatusUpdate,
         AutomationRule,
+        ClientMapping,
+        GbrainExportState,
       ],
       synchronize: true,
     });
@@ -1487,6 +1493,8 @@ describe('InfraDataController audit trail — import emits only on a committed r
         IntegrationDeliveryFailure,
         StatusUpdate,
         AutomationRule,
+        ClientMapping,
+        GbrainExportState,
       ],
       synchronize: true,
     });
@@ -1633,6 +1641,8 @@ describe('InfraDataController.importData status_updates + runtime reconciliation
         IntegrationDeliveryFailure,
         StatusUpdate,
         AutomationRule,
+        ClientMapping,
+        GbrainExportState,
       ],
       synchronize: true,
     });

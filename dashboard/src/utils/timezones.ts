@@ -50,8 +50,10 @@ export function groupedTimezones(): Array<{ region: string; zones: string[] }> {
     if (list) list.push(zone);
     else byRegion.set(region, [zone]);
   }
-  return [...byRegion.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([region, list]) => ({
-    region,
-    zones: list.sort(),
-  }));
+  return [...byRegion.entries()]
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([region, list]) => ({
+      region,
+      zones: list.sort(),
+    }));
 }

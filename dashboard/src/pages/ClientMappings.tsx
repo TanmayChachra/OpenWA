@@ -268,7 +268,10 @@ export function ClientMappings() {
       toast.success(t('clientMappings.toasts.deleted'));
       setDeleteTarget(null);
     } catch (err) {
-      toast.error(t('clientMappings.toasts.deleteFailed'), err instanceof Error ? err.message : t('common.unknownError'));
+      toast.error(
+        t('clientMappings.toasts.deleteFailed'),
+        err instanceof Error ? err.message : t('common.unknownError'),
+      );
     }
   };
 
@@ -663,11 +666,7 @@ export function ClientMappings() {
           <input id="cm-role" value={form.role} onChange={e => setForm({ ...form, role: e.target.value })} />
 
           <label htmlFor="cm-timezone">{t('clientMappings.fields.timezone')}</label>
-          <select
-            id="cm-timezone"
-            value={form.timezone}
-            onChange={e => setForm({ ...form, timezone: e.target.value })}
-          >
+          <select id="cm-timezone" value={form.timezone} onChange={e => setForm({ ...form, timezone: e.target.value })}>
             <option value="">{t('clientMappings.fields.timezoneNotSet')}</option>
             {timezoneGroups.map(group => (
               <optgroup key={group.region} label={group.region}>

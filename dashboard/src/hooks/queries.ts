@@ -272,8 +272,13 @@ export function useCreateClientMappingMutation() {
 export function useUpdateClientMappingMutation() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, data }: { id: string; data: Partial<Omit<ClientMappingPayload, 'jid' | 'kind' | 'sessionId'>> }) =>
-      clientMappingApi.update(id, data),
+    mutationFn: ({
+      id,
+      data,
+    }: {
+      id: string;
+      data: Partial<Omit<ClientMappingPayload, 'jid' | 'kind' | 'sessionId'>>;
+    }) => clientMappingApi.update(id, data),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ['clientMappings'] });
     },

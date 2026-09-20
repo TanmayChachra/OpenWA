@@ -600,6 +600,9 @@ export class InfraDataService {
         // does not reach it. Without this, a restore onto an instance that already holds chat_states rows
         // collides on those PKs and the all-or-nothing gate rolls the whole import back.
         await clearTable('chat_states');
+        // Fork tables, same reason: no FK to sessions, so the sessions DELETE never reaches them.
+        await clearTable('client_mappings');
+        await clearTable('gbrain_export_state');
         // Integration Fabric + both DLQs: none carry an FK constraint to sessions (sessionId is provenance),
         // so clearing them here before the sessions DELETE keeps the replace-semantics complete.
         await clearTable('plugin_instances');

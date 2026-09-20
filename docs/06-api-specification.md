@@ -6658,21 +6658,21 @@ Create a mapping. **Auth:** API key (ADMIN, unscoped)
 
 **Request body**
 
-| Field             | Type    | Required | Description                                                          |
-| ----------------- | ------- | -------- | --------------------------------------------------------------------- |
+| Field             | Type    | Required  | Description                                                           |
+| ----------------- | ------- | --------- | --------------------------------------------------------------------- |
 | sessionId         | string  | see above | Required for `contact`/`group`; must be omitted for `teammate`.       |
-| jid               | string  | yes      | WhatsApp JID, or an internal teammate identifier for `kind=teammate`. |
-| kind              | string  | yes      | `contact` \| `group` \| `teammate`.                                   |
-| name              | string  | yes      | Max 200 chars.                                                        |
-| phone             | string  | no       | Max 32 chars. Groups do not have one.                                 |
-| company           | string  | yes      | `Unbundl` or a client company name. Max 200 chars.                    |
-| team              | string  | no       | Department, e.g. `Performance`, `Design`. Max 100 chars.               |
-| role              | string  | no       | Job title/function within `team`. Max 100 chars.                      |
-| timezone          | string  | no       | IANA time zone name, e.g. `Asia/Jakarta`.                              |
-| status            | string  | no       | `active` \| `inactive`. Default `active`.                              |
-| backupOwnerId     | string  | no       | Another mapping's `id`; secondary SLA escalation owner.                |
-| sentimentTracking | boolean | no       | Group-kind opt-out for Phase 4 sentiment tracking. Default `true`.     |
-| notes             | string  | no       | Free-text context fed into the G Brain export. Max 4000 chars.        |
+| jid               | string  | yes       | WhatsApp JID, or an internal teammate identifier for `kind=teammate`. |
+| kind              | string  | yes       | `contact` \| `group` \| `teammate`.                                   |
+| name              | string  | yes       | Max 200 chars.                                                        |
+| phone             | string  | no        | Max 32 chars. Groups do not have one.                                 |
+| company           | string  | yes       | `Unbundl` or a client company name. Max 200 chars.                    |
+| team              | string  | no        | Department, e.g. `Performance`, `Design`. Max 100 chars.              |
+| role              | string  | no        | Job title/function within `team`. Max 100 chars.                      |
+| timezone          | string  | no        | IANA time zone name, e.g. `Asia/Jakarta`.                             |
+| status            | string  | no        | `active` \| `inactive`. Default `active`.                             |
+| backupOwnerId     | string  | no        | Another mapping's `id`; secondary SLA escalation owner.               |
+| sentimentTracking | boolean | no        | Group-kind opt-out for Phase 4 sentiment tracking. Default `true`.    |
+| notes             | string  | no        | Free-text context fed into the G Brain export. Max 4000 chars.        |
 
 **Response** `201`
 
@@ -6701,6 +6701,17 @@ Create a mapping. **Auth:** API key (ADMIN, unscoped)
 invalid `timezone`, or an unknown/self-referencing `backupOwnerId` · `409` a mapping for this
 `(sessionId, jid, kind)` — or, for `teammate`, this `jid` — already exists
 
+#### POST /api/client-mappings/resolve-and-upsert
+
+Resolve a contact/group `jid` to a phone (`@lid` aware) and return its mapping, creating one only
+when none exists: matched by resolved phone first, then by `jid`. The shared path every automatic
+writer (auto-tag, Import from Chats) uses instead of its own create-if-missing logic. Takes the
+create fields above. **Auth:** API key (ADMIN, unscoped) · **Response** `200`
+
+```json
+{ "mapping": { "id": "f1e2d3c4-...", "jid": "628111@c.us", "kind": "contact" }, "created": false }
+```
+
 #### GET /api/client-mappings
 
 List mappings. **Auth:** API key (ADMIN, unscoped) · **Response** `200` — array of the shape above.
@@ -6718,6 +6729,29 @@ immutable after creation). **Auth:** API key (ADMIN, unscoped) · `200` or `404`
 #### DELETE /api/client-mappings/:id
 
 Delete a mapping. **Auth:** API key (ADMIN, unscoped) · **Response** `204`.
+
+### 6.4.19 GBrain Export
+
+Manual trigger and backfill for the scheduled GBrain export (`GbrainExportController`,
+`/api/gbrain-export`, docs/32 Phase 2). Deployment-global like Client Mapping: every route requires
+an **unscoped** API key with **ADMIN** role.
+
+#### POST /api/gbrain-export/run
+
+Run an export now: every mapped contact and group, its delta since the last successful export (or
+`lookbackDays` days back for a backfill). **Auth:** API key (ADMIN, unscoped)
+
+**Request body** (all optional)
+
+| Field        | Type    | Description                                                                         |
+| ------------ | ------- | ----------------------------------------------------------------------------------- |
+| sessionId    | string  | Limit the run to one session. Omit to export every session.                         |
+| lookbackDays | integer | Min 1. Export this many days regardless of each checkpoint (backfill).              |
+| dryRun       | boolean | Default `false`. Render every document without touching the sink or any checkpoint. |
+
+**Response** `200`: `dryRun`, `sink` (`cli` \| `webhook`), `exportedAt`, `documentsRendered`,
+`documentsDelivered`, `documentsFailed`, and `documents[]` (`entityId`, `sessionId`, `jid`, `name`,
+`messageCount`, `delivered`, `error?`, `markdown`).
 
 ## 6.5 Real-time API (WebSocket)
 

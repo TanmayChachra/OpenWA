@@ -8266,6 +8266,38 @@
         ]
       }
     },
+    "/api/gbrain-export/run": {
+      "post": {
+        "operationId": "GbrainExportController_run",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TriggerGbrainExportDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GbrainExportRunResultDto"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Run a GBrain export now: every mapped contact, its delta since the last successful export (or lookbackDays days back for a manual backfill). dryRun renders every document without touching the sink or any checkpoint, for previewing exactly what a real run would send.",
+        "tags": [
+          "gbrain-export"
+        ]
+      }
+    },
     "/api/sessions/{sessionId}/catalog": {
       "get": {
         "operationId": "CatalogController_getCatalog",
@@ -14420,6 +14452,18 @@
             "items": {
               "type": "object"
             }
+          },
+          "clientMappings": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
+          },
+          "gbrainExportState": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
           }
         },
         "required": [
@@ -14438,7 +14482,9 @@
           "webhookOutboxEvents",
           "integrationDeliveryFailures",
           "statusUpdates",
-          "automationRules"
+          "automationRules",
+          "clientMappings",
+          "gbrainExportState"
         ]
       },
       "TableCountsDto": {
@@ -14507,6 +14553,14 @@
           "automationRules": {
             "type": "number",
             "example": 2
+          },
+          "clientMappings": {
+            "type": "number",
+            "example": 25
+          },
+          "gbrainExportState": {
+            "type": "number",
+            "example": 25
           }
         },
         "required": [
@@ -14525,7 +14579,9 @@
           "webhookOutboxEvents",
           "integrationDeliveryFailures",
           "statusUpdates",
-          "automationRules"
+          "automationRules",
+          "clientMappings",
+          "gbrainExportState"
         ]
       },
       "OmittedInlineMediaDto": {
@@ -14650,6 +14706,12 @@
                 "type": "array"
               },
               "automationRules": {
+                "type": "array"
+              },
+              "clientMappings": {
+                "type": "array"
+              },
+              "gbrainExportState": {
                 "type": "array"
               }
             }
@@ -16583,6 +16645,29 @@
           "mimetype",
           "bytes"
         ]
+      },
+      "TriggerGbrainExportDto": {
+        "type": "object",
+        "properties": {
+          "sessionId": {
+            "type": "string",
+            "description": "Limit the run to one WhatsApp session. Omit to export every session."
+          },
+          "lookbackDays": {
+            "type": "number",
+            "description": "Backfill override: export this many days of history regardless of each contact/group's checkpoint. Omit to use the normal delta-since-last-export behavior.",
+            "minimum": 1
+          },
+          "dryRun": {
+            "type": "boolean",
+            "description": "Render every document but skip the sink and leave checkpoints untouched. For previewing output.",
+            "default": false
+          }
+        }
+      },
+      "GbrainExportRunResultDto": {
+        "type": "object",
+        "properties": {}
       },
       "CatalogDto": {
         "type": "object",
