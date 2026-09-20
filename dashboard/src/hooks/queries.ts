@@ -9,15 +9,12 @@ import {
   pluginsApi,
   pluginInstancesApi,
   statsApi,
-  clientMappingApi,
   type Webhook,
   type WebhookFilters,
   type TemplatePayload,
   type StatsPeriod,
   type CreateInstanceInput,
   type UpdateInstanceInput,
-  type ClientMappingKind,
-  type ClientMappingPayload,
 } from '../services/api';
 
 // ── Query Keys ────────────────────────────────────────────────────────
@@ -38,8 +35,6 @@ export const queryKeys = {
   currentEngine: ['engines', 'current'] as const,
   statsOverview: ['stats', 'overview'] as const,
   statsMessages: (period: string) => ['stats', 'messages', period] as const,
-  clientMappings: (filter?: { sessionId?: string; kind?: ClientMappingKind; company?: string }) =>
-    ['clientMappings', filter ?? {}] as const,
 };
 
 // ── Session Queries ───────────────────────────────────────────────────
@@ -241,56 +236,6 @@ export function useRevokeApiKeyMutation() {
     mutationFn: (id: string) => apiKeyApi.revoke(id),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: queryKeys.apiKeys });
-    },
-  });
-}
-
-// ── Client Mapping Queries ───────────────────────────────────────────
-
-export function useClientMappingsQuery(
-  filter?: { sessionId?: string; kind?: ClientMappingKind; company?: string },
-  options?: { enabled?: boolean },
-) {
-  return useQuery({
-    queryKey: queryKeys.clientMappings(filter),
-    queryFn: () => clientMappingApi.list(filter),
-    staleTime: 30_000,
-    enabled: options?.enabled,
-  });
-}
-
-export function useCreateClientMappingMutation() {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: (data: ClientMappingPayload) => clientMappingApi.create(data),
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ['clientMappings'] });
-    },
-  });
-}
-
-export function useUpdateClientMappingMutation() {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: ({
-      id,
-      data,
-    }: {
-      id: string;
-      data: Partial<Omit<ClientMappingPayload, 'jid' | 'kind' | 'sessionId'>>;
-    }) => clientMappingApi.update(id, data),
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ['clientMappings'] });
-    },
-  });
-}
-
-export function useDeleteClientMappingMutation() {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: (id: string) => clientMappingApi.delete(id),
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ['clientMappings'] });
     },
   });
 }

@@ -13,7 +13,7 @@ import { parseWaId, userPart } from '../../engine/identity/wa-id';
  *
  * `EngineRegistry` and `LidMappingStoreService` both live in the `@Global()` EngineModule (see
  * session-lid-resolver.service.ts, whose read-through-cache-and-persist shape this mirrors) — this
- * is deliberately NOT that service, because SessionModule imports ClientMappingModule and Nest
+ * is deliberately NOT that service, because this fork module must not depend on SessionModule and Nest
  * modules must stay acyclic; reusing the same two low-level, module-cycle-free collaborators gets
  * the same shared, persisted lid<->phone table without a forwardRef().
  */

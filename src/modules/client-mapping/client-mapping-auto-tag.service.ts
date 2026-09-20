@@ -1,9 +1,16 @@
-import { Injectable, Optional } from '@nestjs/common';
+import { Injectable, OnModuleDestroy, OnModuleInit, Optional } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { createLogger } from '../../common/services/logger.service';
+import { HookManager } from '../../core/hooks/hook-manager.service';
+import type { HookContext, HookResult } from '../../core/hooks/hook.interfaces';
 import type { IncomingMessage } from '../../engine/interfaces/whatsapp-engine.interface';
+import { chatKind } from '../../engine/identity/wa-id';
+import { Message, MessageDirection } from '../message/entities/message.entity';
 import { ClientMappingKind } from './entities/client-mapping.entity';
 import { ClientMappingService } from './client-mapping.service';
+
+/** Owner id the hook registration is filed under (and unregistered by). */
+const HOOK_PLUGIN_ID = 'unbundl-client-mapping';
 
 /**
  * Auto-seeds a Client Mapping row (docs/32) the first time a session sees a chat, contact or
@@ -16,13 +23,44 @@ import { ClientMappingService } from './client-mapping.service';
  * — this service's only job is turning an inbound message into that one call's inputs.
  */
 @Injectable()
-export class ClientMappingAutoTagService {
+export class ClientMappingAutoTagService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = createLogger('ClientMappingAutoTagService');
 
   constructor(
     private readonly mappings: ClientMappingService,
     @Optional() private readonly configService?: ConfigService,
+    @Optional() private readonly hookManager?: HookManager,
   ) {}
+
+  /**
+   * Subscribes to the core `message:persisted` hook rather than being called from the session
+   * module: core stays unaware this module exists, so an upstream sync cannot conflict on it. The
+   * hook fires only after the insert's dedupe oracle accepted a new row, the same at-most-once
+   * guarantee the old direct call rode; the one difference is that a message whose insert failed
+   * transiently is not tagged (it is on the next message from that chat). Fail-open: a handler
+   * never throws into the receive path.
+   */
+  onModuleInit(): void {
+    this.hookManager?.register(HOOK_PLUGIN_ID, 'message:persisted', ctx => this.onPersisted(ctx));
+  }
+
+  onModuleDestroy(): void {
+    this.hookManager?.unregisterPlugin(HOOK_PLUGIN_ID);
+  }
+
+  private async onPersisted(ctx: HookContext<unknown>): Promise<HookResult<unknown>> {
+    const { sessionId, message } = ctx.data as { sessionId?: string; message?: Message };
+    // `message:persisted` also fires for phone-composed sends; only inbound traffic auto-tags.
+    if (sessionId && message?.direction === MessageDirection.INCOMING) {
+      await this.evaluateInbound(sessionId, {
+        chatId: message.chatId,
+        fromMe: false,
+        isGroup: chatKind(message.chatId) === 'group',
+        contact: message.chatName ? { pushName: message.chatName } : undefined,
+      } as IncomingMessage).catch(() => undefined);
+    }
+    return { continue: true };
+  }
 
   async evaluateInbound(sessionId: string, message: IncomingMessage): Promise<void> {
     if (message.fromMe) return;

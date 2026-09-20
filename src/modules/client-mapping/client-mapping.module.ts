@@ -8,8 +8,9 @@ import { ClientMappingController } from './client-mapping.controller';
 
 @Module({
   // EngineRegistry/LidMappingStoreService (ClientMappingIdentityService's collaborators) come from
-  // the @Global() EngineModule — no explicit import needed, and importing SessionModule here would
-  // be circular (SessionModule already imports ClientMappingModule; see session.module.ts).
+  // the @Global() EngineModule and HookManager from the @Global() HooksModule - no explicit import
+  // needed. Core's SessionModule does not import this module: auto-tag subscribes to the
+  // `message:persisted` hook instead (see client-mapping-auto-tag.service.ts).
   imports: [TypeOrmModule.forFeature([ClientMapping], 'data')],
   controllers: [ClientMappingController],
   providers: [ClientMappingService, ClientMappingIdentityService, ClientMappingAutoTagService],

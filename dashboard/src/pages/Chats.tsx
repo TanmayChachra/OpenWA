@@ -51,7 +51,8 @@ import {
 import { useChannelMessages } from '../hooks/useChannelMessages';
 import { useContactStatuses } from '../hooks/useContactStatuses';
 import { useChatScrollPosition } from '../hooks/useChatScrollPosition';
-import { useClientMappingsQuery, useCurrentEngineQuery } from '../hooks/queries';
+import { useCurrentEngineQuery } from '../hooks/queries';
+import { useClientMappingsQuery } from '../fork/clientMappingQueries';
 import { createTrailingCoalescer } from '../utils/trailingCoalescer';
 import MessageBody from '../components/chats/MessageBody';
 import MediaLightbox, { type LightboxItem } from '../components/chats/MediaLightbox';
