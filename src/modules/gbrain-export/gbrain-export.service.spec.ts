@@ -227,4 +227,22 @@ describe('GbrainExportService', () => {
     expect(result.documentsRendered).toBe(1);
     expect(result.documents[0].jid).toBe('a@g.us');
   });
+
+  it('an empty window sends nothing (each delta is its own page) and leaves the checkpoint alone', async () => {
+    await seedMapping();
+    const run = await service.run({ dryRun: false });
+    expect(run.documents[0].messageCount).toBe(0);
+    expect(run.documents[0].delivered).toBe(true);
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(await state.count()).toBe(0);
+  });
+
+  it('names the sender of an incoming group message from chatName, falling back to the author number', async () => {
+    await seedMapping();
+    await seedMessage({ timestamp: Date.now() - 2000, body: 'named-marker', chatName: 'Palak' });
+    await seedMessage({ timestamp: Date.now() - 1000, body: 'author-marker', author: '7262@lid' });
+    await service.run({ dryRun: false });
+    expect(sentBodies()[0]).toContain('**Palak**: named-marker');
+    expect(sentBodies()[0]).toContain('**7262**: author-marker');
+  });
 });

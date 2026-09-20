@@ -4,7 +4,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { MoreThan, Repository } from 'typeorm';
 import { createLogger } from '../../common/services/logger.service';
 import { ClientMapping } from '../client-mapping/entities/client-mapping.entity';
-import { Message } from '../message/entities/message.entity';
+import { Message, MessageDirection } from '../message/entities/message.entity';
 import { GbrainExportState } from './entities/gbrain-export-state.entity';
 import { renderGbrainDocument } from './gbrain-export-render';
 import { GbrainCliSink } from './gbrain-sink-cli.service';
@@ -215,6 +215,7 @@ export class GbrainExportService {
         direction: r.direction,
         body: r.body,
         type: r.type,
+        sender: r.direction === MessageDirection.INCOMING ? (r.chatName ?? r.author?.split('@')[0] ?? null) : null,
       })),
       sinceTimestamp,
       now,
@@ -224,6 +225,10 @@ export class GbrainExportService {
     let error: string | undefined;
     if (dryRun) {
       delivered = true; // "delivered" reads as "rendering succeeded" in dry-run mode; nothing was sent
+    } else if (rows.length === 0) {
+      // Each delta becomes its own page (see firstMessageAt in the renderer), so an empty window would
+      // only add a page that says nothing. Nothing to send is a success, and the checkpoint stays put.
+      delivered = true;
     } else {
       const sent = await sink.send(doc);
       delivered = sent.delivered;
