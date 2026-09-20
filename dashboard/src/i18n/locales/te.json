@@ -61,6 +61,7 @@
     "webhooks": "వెబ్‌హుక్స్",
     "templates": "Templates",
     "apiKeys": "API కీలు",
+    "clientMappings": "Client Mapping",
     "messageTester": "మెసేజ్ టెస్టర్",
     "infrastructure": "ఇన్‌ఫ్రాస్ట్రక్చర్",
     "plugins": "ప్లగిన్స్",
@@ -95,7 +96,8 @@
     "actions": {
       "reply": "ప్రత్యుత్తరం",
       "react": "ప్రతిస్పందించు",
-      "delete": "సందేశాన్ని తొలగించు"
+      "delete": "సందేశాన్ని తొలగించు",
+      "tagAsClient": "Add to Client Mapping"
     },
     "replyingTo": "{{name}} కు ప్రత్యుత్తరం ఇస్తోంది",
     "you": "మీరు",
@@ -113,6 +115,7 @@
     "groupSubtitle": "సమూహం",
     "privateContactSubtitle": "ప్రైవేట్ పరిచయం",
     "deleteConfirm": "ఈ సందేశాన్ని అందరి కోసం తొలగించాలా?",
+    "promptButtons": "సందేశ ఎంపికలు",
     "messageDeleted": "🚫 ఈ సందేశం తొలగించబడింది",
     "messageMasked": "🔒 లింక్ చేసిన పరికరాల్లో WhatsApp దీన్ని దాచింది — మీ ప్రధాన ఫోన్‌లో చూడండి",
     "kind": {
@@ -162,6 +165,7 @@
       "send": "సందేశాన్ని పంపడం విఫలమైంది",
       "react": "సందేశానికి ప్రతిస్పందించడం విఫలమైంది",
       "delete": "సందేశాన్ని తొలగించడం విఫలమైంది",
+      "clickButton": "బటన్ క్లిక్ విఫలమైంది",
       "fileTooLarge": "ఫైల్ చాలా పెద్దది (గరిష్టం 18 MB)"
     },
     "loadMessagesError": "సందేశాలను లోడ్ చేయడం సాధ్యం కాలేదు. సర్వర్ లాగ్‌లను తనిఖీ చేయండి.",
@@ -305,7 +309,7 @@
       "created": "సృష్టించబడింది",
       "lastActive": "చివరిసారి యాక్టివ్",
       "autoRejectCalls": "కాల్‌లను ఆటోమేటిక్‌గా తిరస్కరించు",
-      "autoRejectCallsHint": "ఇన్‌కమింగ్ కాల్‌లు మోగిన వెంటనే తిరస్కరించబడతాయి. call.received వెబ్‌హుక్ మాత్రం ముందుగా పంపబడుతుంది. తదుపరి కాల్ నుండి వర్తిస్తుంది — పునఃప్రారంభం అవసరం లేదు."
+      "autoRejectCallsHint": "ఇన్‌కమింగ్ కాల్‌లు మోగిన వెంటనే తిరస్కరించబడతాయి. call.received వెబ్‌హుక్ మాత్రం ముందుగా పంపబడుతుంది. తదుపరి కాల్ నుండి వర్తిస్తుంది — పునఃప్రారంభం అవసరం లేదు. Baileys ఇంజిన్‌లో మాత్రమే: whatsapp-web.js తో కాల్‌లను తిరస్కరించడం సాధ్యం కాదు."
     },
     "proxy": {
       "title": "Proxy Configuration",
@@ -379,6 +383,7 @@
       "phoneLabel": "ఫోన్ నంబర్",
       "phonePlaceholder": "ఉదాహరణకు, 919876543210",
       "phoneHint": "అంతర్జాతీయ ఆకృతిలో (కంట్రీ కోడ్ + నంబర్) సంఖ్యలు మాత్రమే (+, ఖాళీలు, లేదా డాష్‌లు లేకుండా).",
+      "relinkWarning": "whatsapp-web.js ఇంజిన్‌లో, ఇప్పటికే లింక్ చేసిన సెషన్ ఉన్న నంబర్‌కు కోడ్ అడిగితే WhatsApp ఆ పరికరం లింక్‌ను తొలగించవచ్చు. ఆ సెషన్ కొనసాగాలంటే QR ట్యాబ్‌ను వాడండి.",
       "invalidPhone": "చెల్లుబాటు అయ్యే ఫోన్ నంబర్‌ను నమోదు చేయండి: 6–15 సంఖ్యలు, ముందుగా కంట్రీ కోడ్, ఎలాంటి చిహ్నాలు లేకుండా.",
       "generateButton": "పెయిరింగ్ కోడ్‌ను రూపొందించండి",
       "generating": "పెయిరింగ్ కోడ్‌ను రూపొందిస్తోంది...",
@@ -393,7 +398,8 @@
     },
     "start": {
       "teardownPendingTitle": "సెషన్ ప్రారంభం",
-      "teardownPending": "ఈ సెషన్ యొక్క ఆధారాల విచ్ఛిన్నం ఇంకా స్థిరపడుతోంది. కొద్దిసేపు ఆగి మళ్లీ ప్రయత్నించండి."
+      "teardownPending": "ఈ సెషన్ యొక్క ఆధారాల విచ్ఛిన్నం ఇంకా స్థిరపడుతోంది. కొద్దిసేపు ఆగి మళ్లీ ప్రయత్నించండి.",
+      "errorTitle": "ప్రారంభం విఫలమైంది"
     },
     "restriction": {
       "reachout_timelock": "కొత్త చాట్‌లు నిరోధించబడ్డాయి",
@@ -431,6 +437,7 @@
       "fields": {
         "sender": "పంపినవారు",
         "recipient": "స్వీకర్త",
+        "chatId": "చాట్ ID",
         "body": "సందేశ విషయం",
         "type": "సందేశ రకం",
         "isGroup": "గ్రూప్ చాట్",
@@ -518,7 +525,10 @@
       "title": "టెంప్లేట్‌లు ఏవీ సేవ్ కాలేదు",
       "description": "సాధారణ ప్రత్యుత్తరాలు మరియు నోటిఫికేషన్‌లను వేగవంతం చేయడానికి పునర్వినియోగ టెంప్లేట్‌ను సృష్టించండి.",
       "noSessionsTitle": "సెషన్‌లు అందుబాటులో లేవు",
-      "noSessionsDesc": "టెంప్లేట్‌లను జోడించే ముందు WhatsApp సెషన్‌ను సృష్టించండి."
+      "noSessionsDesc": "టెంప్లేట్‌లను జోడించే ముందు WhatsApp సెషన్‌ను సృష్టించండి.",
+      "loadErrorTitle": "టెంప్లేట్‌లను లోడ్ చేయడం సాధ్యం కాలేదు",
+      "forbiddenTitle": "టెంప్లేట్‌లకు యాక్సెస్ లేదు",
+      "forbiddenDesc": "టెంప్లేట్‌లకు ఆపరేటర్ లేదా అడ్మిన్ పాత్ర ఉన్న API కీ అవసరం."
     },
     "toasts": {
       "created": "టెంప్లేట్ విజయవంతంగా సృష్టించబడింది",
@@ -1009,5 +1019,91 @@
       "current": "ఈ సెషన్"
     },
     "loading": "శోధిస్తోంది…"
+  },
+  "clientMappings": {
+    "title": "Client Mapping",
+    "subtitle": "Map WhatsApp contacts, groups and teammates to client/team context for the G Brain export and SLA escalation",
+    "createBtn": "Add Mapping",
+    "modalTitleCreate": "Add Mapping",
+    "modalTitleEdit": "Edit Mapping",
+    "kinds": {
+      "contact": "Contact",
+      "group": "Group",
+      "teammate": "Teammate"
+    },
+    "statuses": {
+      "active": "Active",
+      "inactive": "Inactive"
+    },
+    "fields": {
+      "sessionId": "Session",
+      "sessionIdPlaceholder": "Select a session",
+      "sessionIdHint": "Required for contact/group — a JID is only unique within a session.",
+      "jid": "JID / Identifier",
+      "jidPlaceholder": "WhatsApp JID, or a teammate identifier",
+      "kind": "Kind",
+      "name": "Name",
+      "phone": "Phone",
+      "company": "Company",
+      "team": "Team",
+      "role": "Role",
+      "timezone": "Timezone",
+      "status": "Status",
+      "backupOwnerId": "Backup owner",
+      "backupOwnerNone": "None",
+      "sentimentTracking": "Track sentiment for this group",
+      "notes": "Notes",
+      "notesPlaceholder": "Context fed into the G Brain export, e.g. preferred contact hours",
+      "timezoneNotSet": "Not set"
+    },
+    "columns": {
+      "name": "Name",
+      "kind": "Kind",
+      "company": "Company",
+      "team": "Team",
+      "status": "Status",
+      "actions": "Actions"
+    },
+    "filters": {
+      "allKinds": "All kinds",
+      "allCompanies": "All companies",
+      "searchPlaceholder": "Search name, JID, phone, company, team..."
+    },
+    "actions": {
+      "edit": "Edit"
+    },
+    "empty": {
+      "title": "No mappings yet",
+      "description": "Add a mapping to start feeding client/team context into the G Brain export and SLA escalation.",
+      "noResultsTitle": "No matches",
+      "noResultsDescription": "No mappings match your search or filters."
+    },
+    "confirm": {
+      "deleteTitle": "Delete Mapping",
+      "deleteMessage": "Are you sure you want to permanently delete <strong>{{name}}</strong>? This action cannot be undone."
+    },
+    "toasts": {
+      "created": "Mapping created",
+      "updated": "Mapping updated",
+      "deleted": "Mapping deleted",
+      "createFailed": "Failed to create mapping",
+      "updateFailed": "Failed to update mapping",
+      "deleteFailed": "Failed to delete mapping"
+    },
+    "importBtn": "Import from Chats",
+    "badges": {
+      "incomplete": "Incomplete — needs review (company and/or name could not be resolved)"
+    },
+    "import": {
+      "title": "Import from Chats",
+      "description": "Creates a mapping for every chat in the selected session that isn't mapped yet, using the name/number WhatsApp already resolved. Company is left as \"Unknown\" until a rep fills it in.",
+      "confirmBtn": "Import",
+      "noSessions": "No sessions available to import from",
+      "done": "Imported {{created}}, skipped {{skipped}} (already mapped)",
+      "someFailed": "{{failed}} chat(s) failed to import",
+      "failed": "Import failed",
+      "includeGroupMembers": "Also import each group's members as contacts",
+      "includeGroupMembersHint": "Someone who only ever posts inside a group (never a 1:1 with this number) has no chat of their own, so the option above is what actually adds them — otherwise only the group itself gets a row."
+    }
   }
 }

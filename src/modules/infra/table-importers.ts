@@ -17,6 +17,8 @@ import type {
   IntegrationDeliveryFailureRow,
   StatusUpdateRow,
   AutomationRuleRow,
+  ClientMappingRow,
+  GbrainExportStateRow,
 } from './migration-tables.types';
 
 // A per-table restore step for importData: which backup key to read, the exact INSERT text (kept in
@@ -65,10 +67,15 @@ export const TABLE_IMPORTERS: AnyTableImporter[] = [
     sql: `INSERT INTO sessions (id, name, status, phone, "pushName", config, "proxyUrl", "proxyType", "connectedAt", "lastActiveAt", "createdAt", "updatedAt") 
                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
     id: (session: SessionRow) => session.id,
-    // A session name becomes the engine auth-directory key, so an unvalidated imported name (this
-    // path bypasses CreateSessionDto) could traverse the filesystem. Skip + warn instead of
-    // throwing, so one bad row doesn't 500 the whole restore.
+    // Both columns reach an auth-directory path: the id keys the directory itself, and the name is
+    // still weighed against it (the boot migration and the legacy purge on delete). An unvalidated
+    // imported value (this path bypasses CreateSessionDto) could traverse the filesystem, and an
+    // unsafe id would only surface later as a refused start. Skip + warn instead of throwing, so one
+    // bad row doesn't 500 the whole restore.
     skip: (session: SessionRow) => {
+      if (!isSafeSessionName(session.id)) {
+        return `Skipped session ${JSON.stringify(session.id)}: unsafe id`;
+      }
       if (isSafeSessionName(session.name)) return null;
       return `Skipped session ${session.id}: unsafe name ${JSON.stringify(session.name)}`;
     },
@@ -416,6 +423,44 @@ export const TABLE_IMPORTERS: AnyTableImporter[] = [
       rule.updatedAt,
     ],
   }),
+
+  // Import client mappings (fork table; no FK to sessions, so the import clears then re-inserts it).
+  defineTableImporter({
+    key: 'clientMappings',
+    label: 'client mapping',
+    sql: `INSERT INTO client_mappings (id, "sessionId", jid, kind, name, phone, company, team, role, timezone, status, "backupOwnerId", "sentimentTracking", notes, "aliasJids", "createdAt", "updatedAt")
+               VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)`,
+    id: (cm: ClientMappingRow) => cm.id,
+    map: (cm: ClientMappingRow) => [
+      cm.id,
+      cm.sessionId ?? null,
+      cm.jid,
+      cm.kind,
+      cm.name,
+      cm.phone ?? null,
+      cm.company,
+      cm.team ?? null,
+      cm.role ?? null,
+      cm.timezone ?? null,
+      cm.status ?? 'active',
+      cm.backupOwnerId ?? null,
+      cm.sentimentTracking ?? true,
+      cm.notes ?? null,
+      cm.aliasJids ?? null,
+      cm.createdAt,
+      cm.updatedAt,
+    ],
+  }),
+
+  // Import the GBrain export checkpoint (fork table; per-chat last-exported timestamp).
+  defineTableImporter({
+    key: 'gbrainExportState',
+    label: 'gbrain export checkpoint',
+    sql: `INSERT INTO gbrain_export_state (id, "sessionId", jid, "lastExportedMessageTimestamp", "updatedAt")
+               VALUES ($1, $2, $3, $4, $5)`,
+    id: (gs: GbrainExportStateRow) => gs.id,
+    map: (gs: GbrainExportStateRow) => [gs.id, gs.sessionId, gs.jid, gs.lastExportedMessageTimestamp, gs.updatedAt],
+  }),
 ];
 
 // The `as TableCounts` cast in importData means a dropped or mis-keyed descriptor is invisible to
@@ -438,6 +483,8 @@ const EXPECTED_TABLE_KEYS: ReadonlyArray<keyof MigrationTables> = [
   'integrationDeliveryFailures',
   'statusUpdates',
   'automationRules',
+  'clientMappings',
+  'gbrainExportState',
 ];
 const importerKeys = TABLE_IMPORTERS.map(importer => importer.key);
 for (const key of EXPECTED_TABLE_KEYS) {

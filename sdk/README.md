@@ -25,7 +25,7 @@ All five SDKs expose the same fluent resource surface:
 | Resource    | Methods                                                                                                                                                                                                                                                                                    |
 | ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `sessions`  | list, get, getConfig, updateConfig, getProxy, updateProxy, create, delete, start, stop, logout, forceKill, getQrCode, requestPairingCode, setOnlinePresence, stats                                                                                                                         |
-| `messages`  | list, sendText, sendImage/Video/Audio/Document/Sticker, sendLocation, sendContact, sendTemplate, sendPoll, reply, forward, react, delete, editMessage, history, reactions, media, pin, unpin, star, votePoll, sendBulk, batchStatus, cancelBatch                                           |
+| `messages`  | list, sendText, sendImage/Video/Audio/Document/Sticker, sendLocation, sendContact, sendTemplate, sendPoll, reply, clickButton, forward, react, delete, editMessage, history, reactions, media, pin, unpin, star, votePoll, sendBulk, batchStatus, cancelBatch                              |
 | `contacts`  | list, get, check, profilePicture, profilePictures, phone, upsert, delete, block, unblock, listBlocked                                                                                                                                                                                      |
 | `groups`    | list, get, create, joinGroup, joinInfo, add/remove/promote/demoteParticipants, setSubject, setDescription, get/updateGroupSettings, leave, getPicture, setPicture, deletePicture, inviteCode, revokeInviteCode, getMembershipRequests, approveMembershipRequests, rejectMembershipRequests |
 | `webhooks`  | list, listAll, deliveryFailures, get, create, update, delete, test                                                                                                                                                                                                                         |
@@ -44,8 +44,8 @@ All five SDKs expose the same fluent resource surface:
 > ⚠️ Endpoints requiring an `OPERATOR`-level API key are noted in the inline
 > docs. Deliberately **not** exposed, matching `docs/18-sdk-design.md` exactly:
 > `auth`/api-keys, `audit`, `settings`, `stats`, `automation`, `infra`,
-> `plugins`, the `integration` management routes, `metrics`, `mcp`, `ingress`
-> and `docker`. These two lists have to agree — they did not, in both
+> `plugins`, the `integration` management routes, `client-mappings`,
+> `gbrain-export`, `metrics`, `mcp`, `ingress` and `docker`. These two lists have to agree — they did not, in both
 > directions, and a list that disagrees with its own design doc reads as an
 > accidental omission rather than a decision.
 >

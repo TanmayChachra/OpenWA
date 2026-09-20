@@ -61,6 +61,7 @@
     "webhooks": "Webhooks",
     "templates": "Vorlagen",
     "apiKeys": "API-Schlüssel",
+    "clientMappings": "Client Mapping",
     "messageTester": "Nachrichtentester",
     "infrastructure": "Infrastruktur",
     "plugins": "Plugins",
@@ -95,7 +96,8 @@
     "actions": {
       "reply": "Antworten",
       "react": "Reagieren",
-      "delete": "Nachricht löschen"
+      "delete": "Nachricht löschen",
+      "tagAsClient": "Add to Client Mapping"
     },
     "replyingTo": "Antwort an {{name}}",
     "you": "Du",
@@ -113,6 +115,7 @@
     "groupSubtitle": "Gruppe",
     "privateContactSubtitle": "Privater Kontakt",
     "deleteConfirm": "Diese Nachricht für alle löschen?",
+    "promptButtons": "Nachrichtenoptionen",
     "messageDeleted": "🚫 Diese Nachricht wurde gelöscht",
     "messageMasked": "🔒 Von WhatsApp für verknüpfte Geräte ausgeblendet — prüfe dein Haupttelefon",
     "kind": {
@@ -162,6 +165,7 @@
       "send": "Nachricht konnte nicht gesendet werden",
       "react": "Reaktion auf die Nachricht fehlgeschlagen",
       "delete": "Nachricht konnte nicht gelöscht werden",
+      "clickButton": "Schaltfläche konnte nicht angeklickt werden",
       "fileTooLarge": "Die Datei ist zu groß (max. 18 MB)"
     },
     "loadMessagesError": "Nachrichten konnten nicht geladen werden. Prüfe die Serverprotokolle.",
@@ -305,7 +309,7 @@
       "created": "Erstellt",
       "lastActive": "Zuletzt aktiv",
       "autoRejectCalls": "Anrufe automatisch ablehnen",
-      "autoRejectCallsHint": "Eingehende Anrufe werden abgelehnt, sobald sie klingeln. Der Webhook call.received wird trotzdem zuerst ausgelöst. Gilt ab dem nächsten Anruf — kein Neustart nötig."
+      "autoRejectCallsHint": "Eingehende Anrufe werden abgelehnt, sobald sie klingeln. Der Webhook call.received wird trotzdem zuerst ausgelöst. Gilt ab dem nächsten Anruf — kein Neustart nötig. Nur mit der Baileys-Engine: whatsapp-web.js kann keine Anrufe ablehnen."
     },
     "proxy": {
       "title": "Proxy Configuration",
@@ -379,6 +383,7 @@
       "phoneLabel": "Telefonnummer",
       "phonePlaceholder": "z. B. 491701234567",
       "phoneHint": "Nur Ziffern im internationalen Format (Ländervorwahl + Nummer), ohne +, Leerzeichen oder Bindestriche.",
+      "relinkWarning": "Auf der whatsapp-web.js-Engine kann eine Code-Anfrage für eine Nummer, die bereits eine verknüpfte Sitzung hat, dazu führen, dass WhatsApp dieses Gerät trennt. Nutze den QR-Tab, wenn diese Sitzung aktiv bleiben muss.",
       "invalidPhone": "Gib eine gültige Telefonnummer ein: 6–15 Ziffern, zuerst die Ländervorwahl, keine Sonderzeichen.",
       "generateButton": "Kopplungscode erstellen",
       "generating": "Kopplungscode wird erstellt...",
@@ -393,7 +398,8 @@
     },
     "start": {
       "teardownPendingTitle": "Sitzung wird gestartet",
-      "teardownPending": "Ein Anmeldedatenabbau für diese Sitzung läuft noch. Warten Sie einen Moment und versuchen Sie es erneut."
+      "teardownPending": "Ein Anmeldedatenabbau für diese Sitzung läuft noch. Warten Sie einen Moment und versuchen Sie es erneut.",
+      "errorTitle": "Start fehlgeschlagen"
     },
     "restriction": {
       "reachout_timelock": "Neue Chats blockiert",
@@ -431,6 +437,7 @@
       "fields": {
         "sender": "Absender",
         "recipient": "Empfänger",
+        "chatId": "Chat-ID",
         "body": "Nachrichteninhalt",
         "type": "Nachrichtentyp",
         "isGroup": "Ist Gruppenchat",
@@ -518,7 +525,10 @@
       "title": "Keine Vorlagen gespeichert",
       "description": "Erstelle eine wiederverwendbare Vorlage, um häufige Antworten und Benachrichtigungen schneller zu versenden.",
       "noSessionsTitle": "Keine Sitzungen verfügbar",
-      "noSessionsDesc": "Erstelle eine WhatsApp-Sitzung, bevor du Vorlagen hinzufügst."
+      "noSessionsDesc": "Erstelle eine WhatsApp-Sitzung, bevor du Vorlagen hinzufügst.",
+      "loadErrorTitle": "Vorlagen konnten nicht geladen werden",
+      "forbiddenTitle": "Kein Zugriff auf Vorlagen",
+      "forbiddenDesc": "Vorlagen erfordern einen API-Schlüssel mit der Rolle Operator oder Admin."
     },
     "toasts": {
       "created": "Vorlage wurde erfolgreich erstellt",
@@ -1009,5 +1019,91 @@
       "current": "Diese Sitzung"
     },
     "loading": "Suche läuft…"
+  },
+  "clientMappings": {
+    "title": "Client Mapping",
+    "subtitle": "Map WhatsApp contacts, groups and teammates to client/team context for the G Brain export and SLA escalation",
+    "createBtn": "Add Mapping",
+    "modalTitleCreate": "Add Mapping",
+    "modalTitleEdit": "Edit Mapping",
+    "kinds": {
+      "contact": "Contact",
+      "group": "Group",
+      "teammate": "Teammate"
+    },
+    "statuses": {
+      "active": "Active",
+      "inactive": "Inactive"
+    },
+    "fields": {
+      "sessionId": "Session",
+      "sessionIdPlaceholder": "Select a session",
+      "sessionIdHint": "Required for contact/group — a JID is only unique within a session.",
+      "jid": "JID / Identifier",
+      "jidPlaceholder": "WhatsApp JID, or a teammate identifier",
+      "kind": "Kind",
+      "name": "Name",
+      "phone": "Phone",
+      "company": "Company",
+      "team": "Team",
+      "role": "Role",
+      "timezone": "Timezone",
+      "status": "Status",
+      "backupOwnerId": "Backup owner",
+      "backupOwnerNone": "None",
+      "sentimentTracking": "Track sentiment for this group",
+      "notes": "Notes",
+      "notesPlaceholder": "Context fed into the G Brain export, e.g. preferred contact hours",
+      "timezoneNotSet": "Not set"
+    },
+    "columns": {
+      "name": "Name",
+      "kind": "Kind",
+      "company": "Company",
+      "team": "Team",
+      "status": "Status",
+      "actions": "Actions"
+    },
+    "filters": {
+      "allKinds": "All kinds",
+      "allCompanies": "All companies",
+      "searchPlaceholder": "Search name, JID, phone, company, team..."
+    },
+    "actions": {
+      "edit": "Edit"
+    },
+    "empty": {
+      "title": "No mappings yet",
+      "description": "Add a mapping to start feeding client/team context into the G Brain export and SLA escalation.",
+      "noResultsTitle": "No matches",
+      "noResultsDescription": "No mappings match your search or filters."
+    },
+    "confirm": {
+      "deleteTitle": "Delete Mapping",
+      "deleteMessage": "Are you sure you want to permanently delete <strong>{{name}}</strong>? This action cannot be undone."
+    },
+    "toasts": {
+      "created": "Mapping created",
+      "updated": "Mapping updated",
+      "deleted": "Mapping deleted",
+      "createFailed": "Failed to create mapping",
+      "updateFailed": "Failed to update mapping",
+      "deleteFailed": "Failed to delete mapping"
+    },
+    "importBtn": "Import from Chats",
+    "badges": {
+      "incomplete": "Incomplete — needs review (company and/or name could not be resolved)"
+    },
+    "import": {
+      "title": "Import from Chats",
+      "description": "Creates a mapping for every chat in the selected session that isn't mapped yet, using the name/number WhatsApp already resolved. Company is left as \"Unknown\" until a rep fills it in.",
+      "confirmBtn": "Import",
+      "noSessions": "No sessions available to import from",
+      "done": "Imported {{created}}, skipped {{skipped}} (already mapped)",
+      "someFailed": "{{failed}} chat(s) failed to import",
+      "failed": "Import failed",
+      "includeGroupMembers": "Also import each group's members as contacts",
+      "includeGroupMembersHint": "Someone who only ever posts inside a group (never a 1:1 with this number) has no chat of their own, so the option above is what actually adds them — otherwise only the group itself gets a row."
+    }
   }
 }

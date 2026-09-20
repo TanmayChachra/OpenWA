@@ -461,8 +461,9 @@ export default () => ({
       return Number.isFinite(n) && n > 0 ? n : 20_000;
     })(),
     // Takeover sweep cadence (default 30s): how often a node looks for sessions whose holder's
-    // lease has lapsed — a crashed peer, or this node's own previous identity after a container
-    // recreate — and starts them here. Gated by the AUTO_START_SESSIONS feature flag.
+    // lease has lapsed (a crashed peer, or this node's own previous identity after a container
+    // recreate) and starts them here. Adopting follows the AUTO_START_SESSIONS feature flag; the
+    // sweep itself runs on every node and also marks a vanished node's leftover rows disconnected.
     takeoverSweepMs: (() => {
       const n = parseInt(process.env.SESSION_TAKEOVER_SWEEP_MS ?? '', 10);
       return Number.isFinite(n) && n > 0 ? n : 30_000;
@@ -478,6 +479,44 @@ export default () => ({
       const n = parseInt(process.env.AUTOMATION_MAX_PER_SESSION ?? '', 10);
       return Number.isFinite(n) && n >= 0 ? n : 32;
     })(),
+  },
+
+  // Client mapping (docs/32): auto-tag every new chat into the directory as it's first seen.
+  clientMapping: {
+    // Default ON: a fresh contact/group should show up in Client Mapping without anyone having to
+    // remember to run "Import from Chats" for it. Set CLIENT_MAPPING_AUTO_TAG_ENABLED=false to turn
+    // it off (e.g. a session with heavy broadcast/spam traffic that would otherwise flood the
+    // directory with rows nobody wants).
+    autoTagEnabled: process.env.CLIENT_MAPPING_AUTO_TAG_ENABLED !== 'false',
+  },
+
+  // GBrain scheduled export (docs/32 Phase 2): renders Client Mapping rows + their message delta as
+  // markdown and hands it to GBrain via whichever transport is reachable. Default OFF — this feature
+  // needs a GBrain instance to actually be useful, so it stays inert on a deployment that never
+  // configured one rather than spinning a scheduler for a sink nothing is listening on.
+  gbrainExport: {
+    enabled: process.env.GBRAIN_EXPORT_ENABLED === 'true',
+    // 'cli' talks to a GBrain running on this same host/network via its CLI; 'webhook' POSTs to a
+    // GBrain reachable only over the network. Anything else falls back to 'cli' (the default in
+    // GBrain's own docs — "your hardware, your DB, your keys").
+    sink: process.env.GBRAIN_EXPORT_SINK === 'webhook' ? 'webhook' : 'cli',
+    cliPath: process.env.GBRAIN_CLI_PATH?.trim() || 'gbrain',
+    webhookUrl: process.env.GBRAIN_WEBHOOK_URL?.trim() || '',
+    webhookToken: process.env.GBRAIN_WEBHOOK_TOKEN?.trim() || undefined,
+    webhookTimeoutMs: resolveNonNegativeIntEnv(process.env.GBRAIN_WEBHOOK_TIMEOUT_MS, 10_000),
+    // The `daily` profile's lookback when a jid has never been exported before (no checkpoint row
+    // yet) and the caller didn't pass an explicit lookbackDays override.
+    defaultLookbackDays: (() => {
+      const n = parseInt(process.env.GBRAIN_EXPORT_DEFAULT_LOOKBACK_DAYS ?? '', 10);
+      return Number.isFinite(n) && n > 0 ? n : 1;
+    })(),
+    // How often the scheduler checks whether the daily profile is due (see
+    // gbrain-export-scheduler.service.ts) — NOT a cron expression. This codebase's other periodic
+    // sweeps (IngressReconcilerService, PendingMessageReaperService) are all a plain setInterval
+    // checking elapsed time, not a cron parser, and this follows that same convention rather than
+    // adding a new dependency for one feature. 0 disables the scheduler entirely (manual trigger via
+    // POST /gbrain-export/run still works).
+    scheduleIntervalMs: resolveNonNegativeIntEnv(process.env.GBRAIN_EXPORT_INTERVAL_MS, 24 * 60 * 60_000),
   },
 
   // Server-side media conversion (opt-in): transcodes caller-supplied audio and video into the

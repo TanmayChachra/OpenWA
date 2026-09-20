@@ -37,6 +37,8 @@ import { MediaModule } from './modules/media/media.module';
 import { StatusStoreModule } from './modules/status-store/status-store.module';
 import { ChatMediaModule } from './modules/chat-media/chat-media.module';
 import { AutomationModule } from './modules/automation/automation.module';
+import { ClientMappingModule } from './modules/client-mapping/client-mapping.module';
+import { GbrainExportModule } from './modules/gbrain-export/gbrain-export.module';
 import { TakeoverModule } from './modules/takeover/takeover.module';
 import { CatalogModule } from './modules/catalog/catalog.module';
 import { HooksModule } from './core/hooks';
@@ -173,6 +175,8 @@ if (dashboardServingEnabled && dashboardBuildPresent) {
             __dirname + '/modules/integration/**/*.entity{.ts,.js}',
             __dirname + '/modules/status-store/**/*.entity{.ts,.js}',
             __dirname + '/modules/automation/**/*.entity{.ts,.js}',
+            __dirname + '/modules/client-mapping/**/*.entity{.ts,.js}',
+            __dirname + '/modules/gbrain-export/**/*.entity{.ts,.js}',
           ],
           migrations: [__dirname + '/database/migrations/*{.ts,.js}'],
           logging: configService.get<boolean>('dataDatabase.logging', false),
@@ -311,6 +315,8 @@ if (dashboardServingEnabled && dashboardBuildPresent) {
     StatusStoreModule, // Phase 3: inbound status/story TTL store (24h purge + media persistence)
     ChatMediaModule, // opt-in chat-media archive (retention purge + orphan sweep)
     AutomationModule, // single-message autoreply rules, evaluated on the inbound dispatch
+    ClientMappingModule, // client/teammate/group directory: G Brain export context + SLA escalation owner lookup (docs/32)
+    GbrainExportModule, // GBrain scheduled export (docs/32 Phase 2) — self-gates on GBRAIN_EXPORT_ENABLED
     TakeoverModule, // adopts sessions whose holder's lease lapsed (crashed peer / recreated node)
     CatalogModule, // Phase 3: Catalog API (WhatsApp Business)
     PluginsApiModule, // Phase 5: Plugins API

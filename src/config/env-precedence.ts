@@ -31,6 +31,8 @@ export const BLANK_SHADOWED_ENV_KEYS: string[] = [
   'MEDIA_DOWNLOAD_MAX_BYTES',
   'MEDIA_DOWNLOAD_TIMEOUT_MS',
   'INBOUND_MEDIA_CONCURRENCY',
+  // Whether a caller-supplied URL is fetched through the named session's egress proxy.
+  'SESSION_PROXY_URL_FETCH',
   // Database selection + connection details (#488)
   'DATABASE_TYPE',
   'DATABASE_HOST',
@@ -84,6 +86,17 @@ export const BLANK_SHADOWED_ENV_KEYS: string[] = [
   // Autoreply rule cap, blank-forwarded like the knobs above so an operator who sets nothing does
   // not have an empty string shadow a value in .env / data/.env.generated.
   'AUTOMATION_MAX_PER_SESSION',
+  // Client Mapping auto-tag toggle (docs/32) — same reasoning: blank-forwarded so a value set in
+  // .env / data/.env.generated is never shadowed by an unset compose var.
+  'CLIENT_MAPPING_AUTO_TAG_ENABLED',
+  'GBRAIN_EXPORT_ENABLED',
+  'GBRAIN_EXPORT_SINK',
+  'GBRAIN_CLI_PATH',
+  'GBRAIN_WEBHOOK_URL',
+  'GBRAIN_WEBHOOK_TOKEN',
+  'GBRAIN_WEBHOOK_TIMEOUT_MS',
+  'GBRAIN_EXPORT_DEFAULT_LOOKBACK_DAYS',
+  'GBRAIN_EXPORT_INTERVAL_MS',
   // Behaviour flags with no dashboard route: before they were forwarded, a value set in .env simply
   // never reached the container. They are blank-forwarded like everything else here so the forward
   // itself cannot pin them off.
@@ -200,6 +213,7 @@ export const BLANK_SHADOWED_ENV_KEYS: string[] = [
   'BAILEYS_LOG_LEVEL',
   'BAILEYS_MESSAGE_STORE_LIMIT',
   'BAILEYS_SESSION_STORE_MAX_ENTRIES',
+  'BAILEYS_CHAT_STATE_CACHE_MAX',
   'WWEBJS_ONBOARDING_CONTINUE_LABELS',
   'SHUTDOWN_DELAY_MS',
   'SIMULATE_TYPING_MAX_MS',

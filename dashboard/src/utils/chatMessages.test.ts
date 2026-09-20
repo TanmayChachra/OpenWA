@@ -4,6 +4,7 @@ import {
   mapEngineHistoryMessage,
   mergeChatMessages,
   mergeReactionSnapshot,
+  liveMessageMetadata,
   type EngineHistoryMessage,
 } from './chatMessages.ts';
 import type { ChatMessage } from '../services/api';
@@ -70,6 +71,19 @@ test('mapEngineHistoryMessage: a media message that DID carry media keeps it (no
 
 test('mapEngineHistoryMessage: a text message gets no media metadata', () => {
   assert.equal(mapEngineHistoryMessage(hist({ type: 'text' })).metadata, undefined);
+});
+
+test('liveMessageMetadata: carries inbound prompt buttons from the live WS payload', () => {
+  const buttons = [
+    { id: 'yes', text: 'Sim' },
+    { id: 'no', text: 'Não' },
+  ];
+  assert.deepEqual(liveMessageMetadata({ buttons }), { buttons });
+});
+
+test('liveMessageMetadata: prefers an existing metadata bag over top-level fields', () => {
+  const metadata = { quotedMessage: { id: 'q', body: 'hi' } };
+  assert.deepEqual(liveMessageMetadata({ buttons: [{ id: 'yes', text: 'Sim' }], metadata }), metadata);
 });
 
 test('mergeChatMessages: an engine-only message (no DB row) is included — the backfill case', () => {
@@ -190,6 +204,14 @@ test('mergeOrAppend: an echo with undefined leaves keeps the existing quote/call
   const echo = msg({ id: 'm-1', metadata: { media: undefined } });
   const after = mergeOrAppend(before, echo);
   assert.deepEqual(after[0].metadata, { quotedMessage: { id: 'q-1', body: 'quoted' } });
+});
+
+test('mergeOrAppend: DB-persisted prompt buttons survive a button-less echo', () => {
+  const buttons = [{ id: 'yes', text: 'Sim' }];
+  const before = [msg({ id: 'm-1', metadata: { buttons } })];
+  const echo = msg({ id: 'm-1', metadata: { media: undefined } });
+  const after = mergeOrAppend(before, echo);
+  assert.deepEqual(after[0].metadata?.buttons, buttons);
 });
 
 test('mergeOrAppend dedupes a live WS message against its DB copy (id != id but same waMessageId)', () => {
@@ -416,4 +438,42 @@ test('mergeReactionSnapshot treats an EMPTY snapshot as an answer, not as absenc
 
 test('mergeReactionSnapshot stays undefined when neither side knows anything', () => {
   assert.equal(mergeReactionSnapshot(undefined, undefined), undefined);
+});
+
+import { buildMentionNameMap, resolveMentions } from './chatMessages.ts';
+
+test("buildMentionNameMap keys on the author JID's local part, stripped of a :device suffix", () => {
+  const map = buildMentionNameMap([
+    msg({ author: '166868170059932@lid', chatName: 'Sneha Desai' }),
+    msg({ author: '628111@c.us:7', chatName: 'Group Admin' }),
+  ]);
+  assert.equal(map.get('166868170059932'), 'Sneha Desai');
+  assert.equal(map.get('628111'), 'Group Admin');
+});
+
+test('buildMentionNameMap skips a row with no author or no resolved name', () => {
+  const map = buildMentionNameMap([
+    msg({ author: undefined, chatName: 'Sneha Desai' }),
+    msg({ author: '628@c.us', chatName: undefined }),
+  ]);
+  assert.equal(map.size, 0);
+});
+
+test('resolveMentions replaces a matched @<digits> token with @<FirstName>', () => {
+  const names = buildMentionNameMap([msg({ author: '166868170059932@lid', chatName: 'Sneha Desai' })]);
+  assert.equal(resolveMentions('Hi @166868170059932, any update?', names), 'Hi @Sneha, any update?');
+});
+
+test('resolveMentions leaves an unmatched @<digits> token exactly as WhatsApp sent it', () => {
+  const names = buildMentionNameMap([msg({ author: '166868170059932@lid', chatName: 'Sneha Desai' })]);
+  assert.equal(resolveMentions('Hi @999999999, who is this?', names), 'Hi @999999999, who is this?');
+});
+
+test('resolveMentions does not touch a short @-token that is not a real mention (below the digit floor)', () => {
+  const names = buildMentionNameMap([msg({ author: '166868170059932@lid', chatName: 'Sneha Desai' })]);
+  assert.equal(resolveMentions('see item @42', names), 'see item @42');
+});
+
+test('resolveMentions is a no-op with an empty name map (skips the regex pass entirely)', () => {
+  assert.equal(resolveMentions('Hi @166868170059932', new Map()), 'Hi @166868170059932');
 });

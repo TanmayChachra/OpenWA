@@ -1,8 +1,14 @@
-import { useCallback, useEffect, useState, type RefObject } from 'react';
+import { useCallback, useEffect, useMemo, useState, type RefObject } from 'react';
 import { useTranslation } from 'react-i18next';
-import { AlertCircle, ChevronDown, CornerUpLeft, Loader2, MessageSquare, Smile, Trash2 } from 'lucide-react';
+import { AlertCircle, ChevronDown, CornerUpLeft, Loader2, MessageSquare, Smile, Trash2, UserPlus } from 'lucide-react';
 import { sessionApi, type Chat } from '../../services/api';
-import { getMediaSrc, senderKey, type ChatMessageView } from '../../utils/chatMessages';
+import {
+  buildMentionNameMap,
+  getMediaSrc,
+  resolveMentions,
+  senderKey,
+  type ChatMessageView,
+} from '../../utils/chatMessages';
 import { shouldFetchOlderMessages } from '../../utils/scrollDecision';
 import MessageBody from './MessageBody';
 
@@ -35,6 +41,16 @@ interface ChatThreadProps {
   onReply: (message: ChatMessageView) => void;
   onReact: (message: ChatMessageView, emoji: string) => void;
   onDelete: (message: ChatMessageView) => void;
+  /** Gates the per-sender "add to mapping" button below — Client Mapping is an admin-only surface. */
+  showTagSender?: boolean;
+  /** Group participant JIDs that already have a Client Mapping row in this session. */
+  mappedContactJids?: Set<string>;
+  onTagSender?: (senderJid: string, senderName: string) => void;
+  /** JID currently mid phone-number lookup (see Chats.tsx handleTagSender) — swaps that one button
+   * to a spinner so a double-click can't fire a second lookup while the first is in flight. */
+  resolvingSenderJid?: string | null;
+  /** Tap a choice on an inbound business button/list prompt (Baileys click-button). */
+  onClickButton: (message: ChatMessageView, button: { id: string; text: string }) => Promise<void>;
 }
 
 // The messages area of the active chat room: the bubble list (media, quotes, reactions, hover
@@ -57,8 +73,18 @@ function ChatThread({
   onReply,
   onReact,
   onDelete,
+  showTagSender,
+  mappedContactJids,
+  onTagSender,
+  resolvingSenderJid,
+  onClickButton,
 }: ChatThreadProps) {
   const { t } = useTranslation();
+
+  // "@<digits>" in a message body only ever means something once resolved against a participant
+  // this thread has already seen post (see buildMentionNameMap) — recomputed only when the message
+  // list itself changes, not per-render.
+  const mentionNames = useMemo(() => buildMentionNameMap(messages), [messages]);
 
   // Media the message list did not inline. The route serves the bytes as an attachment
   // (Content-Disposition), and the list only carries payloads up to
@@ -70,6 +96,12 @@ function ChatThread({
   // overwrite the first, after which whichever settled first cleared the other's state — re-enabling
   // a button whose fetch was still open, and landing a failure marker on the wrong bubble.
   const [mediaFetch, setMediaFetch] = useState<Record<string, 'loading' | 'failed'>>({});
+  // In-flight / completed taps on inbound prompt buttons. Keyed by waMessageId so a second click
+  // on another choice of the same prompt is blocked while one request is open, and after success
+  // the whole row stays disabled (WhatsApp treats a prompt as single-choice once answered).
+  const [buttonClick, setButtonClick] = useState<
+    Record<string, { loadingId?: string; done?: boolean; selectedId?: string }>
+  >({});
   const downloadMedia = useCallback(
     async (message: ChatMessageView) => {
       const messageId = message.waMessageId;
@@ -99,6 +131,34 @@ function ChatThread({
       }
     },
     [sessionId, activeChat.id],
+  );
+
+  const handleClickButton = useCallback(
+    async (message: ChatMessageView, button: { id: string; text: string }) => {
+      const key = message.waMessageId || message.id;
+      if (!key) return;
+      let blocked = false;
+      setButtonClick(prev => {
+        if (prev[key]?.loadingId || prev[key]?.done) {
+          blocked = true;
+          return prev;
+        }
+        return { ...prev, [key]: { loadingId: button.id } };
+      });
+      if (blocked) return;
+      try {
+        await onClickButton(message, button);
+        setButtonClick(prev => ({ ...prev, [key]: { done: true, selectedId: button.id } }));
+      } catch {
+        // Parent already toasts; clear the in-flight state so the user can retry.
+        setButtonClick(prev => {
+          const next = { ...prev };
+          delete next[key];
+          return next;
+        });
+      }
+    },
+    [onClickButton],
   );
 
   // Scroll-to-bottom button visibility. The main scroll-position memory is owned by
@@ -139,6 +199,7 @@ function ChatThread({
   // useChatScrollPosition and our listener will resync on its first scroll tick.
   useEffect(() => {
     setShowJumpToBottom(false);
+    setButtonClick({});
   }, [activeChat?.id]);
 
   // Helper formats
@@ -338,20 +399,43 @@ function ChatThread({
                     isMediaMessage ? 'media-type' : ''
                   } ${isRevoked ? 'revoked-type' : ''}`}
                 >
-                  {/* Group sender label (WhatsApp-style: coloured name atop the bubble) */}
                   {/* Group sender label (WhatsApp-style: coloured name atop the bubble).
                       Colour keys on the stable sender id, so same-named participants
                       still get distinct colours; the label shows the human name. */}
                   {showSender && (
-                    <div className="message-sender" style={{ color: senderColor(senderKey(msg)!) }}>
-                      {msg.chatName}
+                    <div className="message-sender-row">
+                      <span className="message-sender" style={{ color: senderColor(senderKey(msg)!) }}>
+                        {msg.chatName}
+                      </span>
+                      {/* Only meaningful with a real participant JID (author) — a chatName-only
+                          fallback has nothing stable to map. Hidden once mapped, or for a
+                          non-admin key (Client Mapping is admin-only; see Chats.tsx). */}
+                      {showTagSender && msg.author && !mappedContactJids?.has(msg.author) && (
+                        <button
+                          type="button"
+                          className="message-sender-tag-btn"
+                          onClick={() => onTagSender?.(msg.author!, msg.chatName!)}
+                          disabled={resolvingSenderJid === msg.author}
+                          title={t('chats.actions.tagAsClient')}
+                          aria-label={t('chats.actions.tagAsClient')}
+                        >
+                          {resolvingSenderJid === msg.author ? (
+                            <Loader2 size={12} className="animate-spin" />
+                          ) : (
+                            <UserPlus size={12} />
+                          )}
+                        </button>
+                      )}
                     </div>
                   )}
 
                   {/* Quoted message display */}
                   {msg.metadata?.quotedMessage && (
                     <div className="message-quote-box">
-                      <MessageBody text={msg.metadata.quotedMessage.body} className="quote-body" />
+                      <MessageBody
+                        text={resolveMentions(msg.metadata.quotedMessage.body, mentionNames)}
+                        className="quote-body"
+                      />
                     </div>
                   )}
 
@@ -365,7 +449,32 @@ function ChatThread({
                     msg.body &&
                     (!mediaInfo || msg.body !== mediaInfo.filename) &&
                     msg.type !== 'location' &&
-                    msg.type !== 'call' && <MessageBody text={msg.body} className="message-text" />
+                    msg.type !== 'call' && (
+                      <MessageBody text={resolveMentions(msg.body, mentionNames)} className="message-text" />
+                    )
+                  )}
+
+                  {/* Inbound business prompt choices — tap calls POST .../messages/click-button. */}
+                  {!isMe && !isRevoked && !isMasked && (msg.metadata?.buttons?.length ?? 0) > 0 && (
+                    <div className="message-prompt-buttons" role="group" aria-label={t('chats.promptButtons')}>
+                      {msg.metadata!.buttons!.map((btn, idx) => {
+                        const clickKey = msg.waMessageId || msg.id;
+                        const state = buttonClick[clickKey];
+                        const loading = state?.loadingId === btn.id;
+                        const disabled = Boolean(state?.loadingId || state?.done);
+                        return (
+                          <button
+                            key={`${idx}:${btn.id}`}
+                            type="button"
+                            className={`message-prompt-button${state?.selectedId === btn.id ? ' selected' : ''}${state?.done ? ' answered' : ''}`}
+                            disabled={disabled}
+                            onClick={() => void handleClickButton(msg, btn)}
+                          >
+                            {loading ? <Loader2 size={14} className="animate-spin" /> : btn.text}
+                          </button>
+                        );
+                      })}
+                    </div>
                   )}
 
                   <div className="message-meta">

@@ -125,6 +125,36 @@ export interface ChatStateRow {
   updatedAt: string;
 }
 
+export interface ClientMappingRow {
+  id: string;
+  sessionId: string | null;
+  jid: string;
+  kind: string;
+  name: string;
+  phone: string | null;
+  company: string;
+  team: string | null;
+  role: string | null;
+  timezone: string | null;
+  status: string;
+  backupOwnerId: string | null;
+  // boolean on Postgres, 0/1 on SQLite; carried through as-is like ChatStateRow.archived.
+  sentimentTracking: boolean | number;
+  notes: string | null;
+  aliasJids: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface GbrainExportStateRow {
+  id: string;
+  sessionId: string;
+  jid: string;
+  // bigint: a string from the Postgres driver, a number from SQLite. Carried through as-is.
+  lastExportedMessageTimestamp: number | string;
+  updatedAt: string;
+}
+
 export interface PluginInstanceRow {
   id: string;
   pluginId: string;
@@ -269,6 +299,8 @@ export interface MigrationTables {
   integrationDeliveryFailures: IntegrationDeliveryFailureRow[];
   statusUpdates: StatusUpdateRow[];
   automationRules: AutomationRuleRow[];
+  clientMappings: ClientMappingRow[];
+  gbrainExportState: GbrainExportStateRow[];
 }
 
 export type TableCounts = { [K in keyof MigrationTables]: number };

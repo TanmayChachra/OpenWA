@@ -267,6 +267,12 @@ export const EXPORT_TABLES: AnyExportTable[] = [
   // rule with it — exporting and re-inserting it is not optional, or a restore silently destroys
   // every autoreply rule.
   defineExportTable({ key: 'automationRules', table: 'automation_rules', optional: true }),
+
+  // Fork additions. Neither has an FK to sessions (sessionId is provenance), so the import clears
+  // them explicitly. client_mappings is operator-entered data a restore must not lose; the GBrain
+  // export checkpoint is carried so a restored instance does not re-export from the beginning.
+  defineExportTable({ key: 'clientMappings', table: 'client_mappings', optional: true }),
+  defineExportTable({ key: 'gbrainExportState', table: 'gbrain_export_state', optional: true }),
 ];
 
 /**

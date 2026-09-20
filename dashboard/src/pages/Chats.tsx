@@ -1,17 +1,21 @@
 import { useState, useEffect, useCallback, useRef, useMemo, useLayoutEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Trans, useTranslation } from 'react-i18next';
 import { nextReconnectState } from '../utils/reconnectState';
 import { applyIncomingToChatList } from '../utils/chatList';
 import { filterChats, filterChannels, groupStatusesByContact } from '../utils/chatFilters';
-import { ArrowLeft, Loader2, Megaphone, CircleDashed, AlertCircle, MessageSquare } from 'lucide-react';
+import { ArrowLeft, Loader2, Megaphone, CircleDashed, AlertCircle, MessageSquare, UserPlus } from 'lucide-react';
 import { useProfilePicture } from '../hooks/useProfilePicture';
 import { useProfilePictures } from '../hooks/useProfilePictures';
 import { useResolvedPhone } from '../hooks/useResolvedPhone';
-import { formatPhoneForDisplay } from '../utils/formatPhone';
+import { useRole } from '../hooks/useRole';
+import { formatPhoneForDisplay, parsePhoneFromJid } from '../utils/formatPhone';
+import type { ClientMappingPrefill } from './ClientMappings';
 import {
   sessionApi,
   messageApi,
+  contactApi,
   asMessageType,
   type Session,
   type Chat,
@@ -28,6 +32,7 @@ import {
   patchMatchingMessage,
   byMessageId,
   getMediaSrc,
+  liveMessageMetadata,
   type ChatMessageView,
   type MessageMedia,
 } from '../utils/chatMessages';
@@ -46,7 +51,7 @@ import {
 import { useChannelMessages } from '../hooks/useChannelMessages';
 import { useContactStatuses } from '../hooks/useContactStatuses';
 import { useChatScrollPosition } from '../hooks/useChatScrollPosition';
-import { useCurrentEngineQuery } from '../hooks/queries';
+import { useClientMappingsQuery, useCurrentEngineQuery } from '../hooks/queries';
 import { createTrailingCoalescer } from '../utils/trailingCoalescer';
 import MessageBody from '../components/chats/MessageBody';
 import MediaLightbox, { type LightboxItem } from '../components/chats/MediaLightbox';
@@ -78,6 +83,8 @@ interface IncomingWsMessage {
   // The backend emits `call` as a top-level field on the live `message.received` event (it's only
   // folded into `metadata` on the persisted/history path), so declare it here to carry it through.
   call?: { video: boolean; missed: boolean };
+  /** Business prompt choices (Baileys); top-level on the live event, folded into metadata for the UI. */
+  buttons?: Array<{ id: string; text: string }>;
   metadata?: ChatMessageView['metadata'];
   kind?: ChatKind;
   /** Group poster: `from` is the group JID, so `contact`/`author` identify who actually sent it. */
@@ -117,6 +124,8 @@ export function Chats() {
   const { t } = useTranslation();
   useDocumentTitle(t('nav.chats'));
   const { error: showErrorToast, warning: showWarningToast } = useToast();
+  const { isAdmin } = useRole();
+  const navigate = useNavigate();
 
   // Sessions list & active session
   const [sessions, setSessions] = useState<Session[]>([]);
@@ -265,6 +274,74 @@ export function Chats() {
   );
   const activePhoneText =
     activePhoneDisplay ?? (resolvedPhoneQ.data ? formatPhoneForDisplay(resolvedPhoneQ.data) : null);
+  // Raw digits (not the pretty-printed display string) for prefilling a Client Mapping — same
+  // resolution order as the header line above, minus the cosmetic formatting.
+  const activeRawPhone = activeChat
+    ? (parsePhoneFromJid(activeChat.id) ?? resolvedPhoneQ.data ?? undefined)
+    : undefined;
+
+  // "Tag as Client" from the chat window: WhatsApp already hands us a display name for most chats
+  // (pushName — the name the other party set for themselves — or, if the number is in this
+  // account's own address book, their saved contact name; the chat-list endpoint resolves
+  // whichever is available into `chat.name`). Prefilling from that means a rep only has to fill in
+  // company/team/notes, not hunt down and retype a JID by hand.
+  const handleTagAsClient = useCallback(() => {
+    if (!activeChat || !selectedSessionId) return;
+    const prefill: ClientMappingPrefill = {
+      sessionId: selectedSessionId,
+      jid: activeChat.id,
+      kind: activeChat.isGroup ? 'group' : 'contact',
+      name: activeChat.name || undefined,
+      phone: activeChat.isGroup ? undefined : activeRawPhone,
+    };
+    navigate('/client-mappings', { state: { prefill } });
+  }, [activeChat, selectedSessionId, activeRawPhone, navigate]);
+
+  // Which group participants already have a mapping in THIS session, so ChatThread can offer a
+  // quick "add to mapping" next to a sender's name instead of only ever tagging the group as a
+  // whole. Client Mapping is an admin-only, unscoped-key surface (see src/modules/client-mapping),
+  // so this only fires for an admin — a non-admin key would just get a 403 back.
+  const { data: mappedContacts = [] } = useClientMappingsQuery(
+    { sessionId: selectedSessionId || undefined, kind: 'contact' },
+    { enabled: isAdmin && !!selectedSessionId },
+  );
+  const mappedContactJids = useMemo(() => new Set(mappedContacts.map(m => m.jid)), [mappedContacts]);
+
+  // "Add to mapping" for one group participant (the sender label above their message), not the
+  // whole group — e.g. Sneha Desai posts in "Unbundl x Pink Wardrobe" but isn't mapped herself yet.
+  // Only meaningful with a real participant JID (senderJid), which is why ChatThread only shows the
+  // button when the message actually carries `author` — a chatName-only fallback has no stable id to
+  // map. A group participant's JID is almost always @lid (a privacy id), so parsePhoneFromJid alone
+  // rarely resolves a number here (unlike the header's activeRawPhone, which is usually a plain
+  // @c.us 1:1 chat) — worth the extra round trip to fetch it via the engine's lid->phone lookup
+  // rather than handing the mapping form a name with no number at all.
+  const [resolvingSenderJid, setResolvingSenderJid] = useState<string | null>(null);
+  const handleTagSender = useCallback(
+    async (senderJid: string, senderName: string) => {
+      if (!selectedSessionId) return;
+      let phone = parsePhoneFromJid(senderJid) ?? undefined;
+      if (!phone) {
+        setResolvingSenderJid(senderJid);
+        try {
+          const resolved = await contactApi.resolvePhone(selectedSessionId, senderJid);
+          phone = resolved.phone ?? undefined;
+        } catch {
+          // Best-effort: hand off without a phone rather than block the tag on a failed lookup.
+        } finally {
+          setResolvingSenderJid(null);
+        }
+      }
+      const prefill: ClientMappingPrefill = {
+        sessionId: selectedSessionId,
+        jid: senderJid,
+        kind: 'contact',
+        name: senderName || undefined,
+        phone,
+      };
+      navigate('/client-mappings', { state: { prefill } });
+    },
+    [selectedSessionId, navigate],
+  );
 
   // 1. Fetch available connected sessions on mount
   useEffect(() => {
@@ -371,11 +448,7 @@ export function Chats() {
         status: 'sent',
         timestamp: newMsg.timestamp,
         createdAt: new Date(newMsg.timestamp * 1000).toISOString(),
-        metadata: newMsg.metadata || {
-          media: newMsg.media,
-          quotedMessage: newMsg.quotedMessage,
-          call: newMsg.call,
-        },
+        metadata: liveMessageMetadata(newMsg),
         kind: newMsg.kind,
       };
 
@@ -542,7 +615,8 @@ export function Chats() {
   // A transient WebSocket gap means message.received/ack/revoke events were missed, and the chat
   // cache uses staleTime: Infinity so it won't refetch on its own. On a reconnect (isConnected
   // false→true after a prior connect), invalidate the active session's messages so the thread the
-  // gap left stale refreshes. The transition logic is unit-tested in utils/reconnectState.
+  // gap left stale refreshes. A failed feed counts as a gap even if it never connected, so the
+  // banner's retry refreshes too. The transition logic is unit-tested in utils/reconnectState.
   const reconnectHadConnected = useRef(false);
   const reconnectWasDisconnected = useRef(false);
   useEffect(() => {
@@ -550,6 +624,7 @@ export function Chats() {
       isConnected,
       hadConnected: reconnectHadConnected.current,
       wasDisconnected: reconnectWasDisconnected.current,
+      connectionFailed,
     });
     reconnectHadConnected.current = decision.hadConnected;
     reconnectWasDisconnected.current = decision.wasDisconnected;
@@ -559,7 +634,7 @@ export function Chats() {
       // otherwise stay invisible until a focus refetch.
       queryClient.invalidateQueries({ queryKey: ['contact-statuses', selectedSessionId] });
     }
-  }, [isConnected, selectedSessionId, queryClient]);
+  }, [isConnected, connectionFailed, selectedSessionId, queryClient]);
 
   useEffect(() => {
     if (selectedSessionId && isConnected) {
@@ -643,6 +718,22 @@ export function Chats() {
       updateMessage(selectedSessionId, activeChat.id, msg.id, { body: '', type: 'revoked' });
     } catch (err) {
       showErrorToast(t('chats.errors.delete'), err instanceof Error ? err.message : undefined);
+    }
+  };
+
+  const handleClickButton = async (msg: ChatMessageView, button: { id: string; text: string }) => {
+    if (!selectedSessionId || !activeChat) return;
+    const msgId = msg.waMessageId || msg.id;
+    try {
+      await messageApi.clickButton(selectedSessionId, {
+        chatId: activeChat.id,
+        messageId: msgId,
+        buttonId: button.id,
+        text: button.text,
+      });
+    } catch (err) {
+      showErrorToast(t('chats.errors.clickButton'), err instanceof Error ? err.message : undefined);
+      throw err;
     }
   };
 
@@ -788,6 +879,25 @@ export function Chats() {
     if (el) el.scrollTop = el.scrollHeight;
   }, [activeStatusGroup?.contact.id, activeStatusGroup?.items]);
 
+  // Escape closes the open view and returns to the list. Anything that owns the key already keeps
+  // it: a modal (Modal renders role="dialog" only while open) and the language menu (role="menu")
+  // are skipped here, and so is the media viewer, whose library renders its own role="dialog"
+  // portal and closes itself on Escape. A handler that called preventDefault, or a composition
+  // still being committed by an IME, is left alone for the same reason.
+  useEffect(() => {
+    const closeOpenViewOnEscape = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape' || event.defaultPrevented || event.isComposing) return;
+      if (document.querySelector('[role="dialog"], [role="menu"]')) return;
+      if (activeStatusContactId !== null) setActiveStatusContactId(null);
+      else if (activeChannel) setActiveChannel(null);
+      else if (activeChat) setActiveChat(null);
+      else return;
+      event.preventDefault();
+    };
+    document.addEventListener('keydown', closeOpenViewOnEscape);
+    return () => document.removeEventListener('keydown', closeOpenViewOnEscape);
+  }, [activeStatusContactId, activeChannel, activeChat]);
+
   // Image media items for the lightbox, in render order. `getMediaSrc` reconstructs a usable src
   // from either a base64 payload or a URL — the ChatMessageView shape stores both in `data`.
   const imageMedia = useMemo<LightboxItem[]>(
@@ -914,6 +1024,17 @@ export function Chats() {
                       {activeChat.id}
                     </span>
                   </div>
+                  {isAdmin && (
+                    <button
+                      type="button"
+                      className="room-tag-client-btn"
+                      onClick={handleTagAsClient}
+                      title={t('chats.actions.tagAsClient')}
+                      aria-label={t('chats.actions.tagAsClient')}
+                    >
+                      <UserPlus size={18} />
+                    </button>
+                  )}
                 </header>
 
                 {/* Messages body (list, media, reactions, scroll-to-bottom) — components/chats/ChatThread. */}
@@ -936,6 +1057,11 @@ export function Chats() {
                   onReply={setReplyingTo}
                   onReact={handleReactMessage}
                   onDelete={handleDeleteMessage}
+                  showTagSender={isAdmin}
+                  mappedContactJids={mappedContactJids}
+                  onTagSender={handleTagSender}
+                  resolvingSenderJid={resolvingSenderJid}
+                  onClickButton={handleClickButton}
                 />
 
                 {/* Composer: attachment preview, emoji panel, reply banner, input bar —

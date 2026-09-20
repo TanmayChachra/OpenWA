@@ -13,6 +13,7 @@ import {
   Send,
   Server,
   Puzzle,
+  Users,
   Sun,
   Moon,
   Monitor,
@@ -40,11 +41,13 @@ const allNavItems = [
   { to: '/webhooks', icon: Webhook, key: 'webhooks' as const, adminOnly: false },
   { to: '/templates', icon: ClipboardList, key: 'templates' as const, adminOnly: false },
   { to: '/api-keys', icon: Key, key: 'apiKeys' as const, adminOnly: true },
+  { to: '/client-mappings', icon: Users, key: 'clientMappings' as const, adminOnly: true },
   { to: '/message-tester', icon: Send, key: 'messageTester' as const, adminOnly: false },
   // Backend /infra/* is ADMIN-only; hide the nav item from non-admins (UX + defense-in-depth).
   { to: '/infrastructure', icon: Server, key: 'infrastructure' as const, adminOnly: true },
   { to: '/plugins', icon: Puzzle, key: 'plugins' as const, adminOnly: true },
-  { to: '/logs', icon: FileText, key: 'logs' as const, adminOnly: false },
+  // Backend /audit is ADMIN-only too.
+  { to: '/logs', icon: FileText, key: 'logs' as const, adminOnly: true },
 ];
 
 const themeIcons = { light: Sun, dark: Moon, system: Monitor };
