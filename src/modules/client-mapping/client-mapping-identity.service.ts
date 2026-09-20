@@ -41,14 +41,20 @@ export class ClientMappingIdentityService {
     const cached = this.lidMappingStore?.getCached(lid);
     if (cached !== undefined) return cached;
 
-    let phone: string | null;
+    let phone: string | null = null;
+    // A missing engine or a rejection is a transient unknown, not "no phone": persisting it would
+    // overwrite a stored mapping (#1058, same rule as session-lid-resolver.service.ts).
+    let resolved = false;
     try {
       const engine = this.engines.get(sessionId);
-      phone = engine ? ((await engine.resolveContactPhone(jid)) ?? null) : null;
+      if (engine) {
+        phone = (await engine.resolveContactPhone(jid)) ?? null;
+        resolved = true;
+      }
     } catch {
-      phone = null;
+      // fall through with resolved=false
     }
-    void this.lidMappingStore?.remember(lid, phone, sessionId)?.catch(() => undefined);
+    if (resolved) void this.lidMappingStore?.remember(lid, phone, sessionId)?.catch(() => undefined);
     return phone;
   }
 }
