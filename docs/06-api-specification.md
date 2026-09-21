@@ -6792,6 +6792,8 @@ Create a mapping. **Auth:** API key (ADMIN, unscoped)
 }
 ```
 
+**Merging:** for `kind=contact`, if the `phone` is already mapped in that session, or the `jid` is already a recorded alias of an existing contact, the request is folded into that entry instead of failing: the new `jid` is added to its `aliasJids`, and only blank fields on the entry are filled (an existing value is never overwritten). The response is that existing entry.
+
 **Errors:** `400` missing `sessionId` for `contact`/`group`, `sessionId` set for `teammate`,
 invalid `timezone`, or an unknown/self-referencing `backupOwnerId` · `409` a mapping for this
 `(sessionId, jid, kind)` — or, for `teammate`, this `jid` — already exists

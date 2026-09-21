@@ -43,8 +43,8 @@ interface ChatThreadProps {
   onDelete: (message: ChatMessageView) => void;
   /** Gates the per-sender "add to mapping" button below — Client Mapping is an admin-only surface. */
   showTagSender?: boolean;
-  /** Group participant JIDs that already have a Client Mapping row in this session. */
-  mappedContactJids?: Set<string>;
+  /** True when this sender already has a Client Mapping (by jid, alias or exact name). */
+  isMappedSender?: (author: string, chatName?: string | null) => boolean;
   onTagSender?: (senderJid: string, senderName: string) => void;
   /** JID currently mid phone-number lookup (see Chats.tsx handleTagSender) — swaps that one button
    * to a spinner so a double-click can't fire a second lookup while the first is in flight. */
@@ -74,7 +74,7 @@ function ChatThread({
   onReact,
   onDelete,
   showTagSender,
-  mappedContactJids,
+  isMappedSender,
   onTagSender,
   resolvingSenderJid,
   onClickButton,
@@ -410,7 +410,7 @@ function ChatThread({
                       {/* Only meaningful with a real participant JID (author) — a chatName-only
                           fallback has nothing stable to map. Hidden once mapped, or for a
                           non-admin key (Client Mapping is admin-only; see Chats.tsx). */}
-                      {showTagSender && msg.author && !mappedContactJids?.has(msg.author) && (
+                      {showTagSender && msg.author && !isMappedSender?.(msg.author, msg.chatName) && (
                         <button
                           type="button"
                           className="message-sender-tag-btn"

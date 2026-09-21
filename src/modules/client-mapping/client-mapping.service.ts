@@ -1,6 +1,6 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { FindOptionsWhere, In, Repository } from 'typeorm';
+import { FindOptionsWhere, In, Like, Repository } from 'typeorm';
 import { isUniqueViolation } from '../../common/utils/db-errors';
 import { resolveSessionScope } from '../../common/security/session-scope';
 import { userPart } from '../../engine/identity/wa-id';
@@ -56,6 +56,14 @@ export class ClientMappingService {
       await this.assertValidBackupOwner(dto.backupOwnerId, null);
     }
 
+    // A contact is one real person however many jids WhatsApp uses for them (phone jid, @lid). When the
+    // phone is already mapped, or this jid is already a recorded alias, merge into that entry instead of
+    // failing on the phone unique index with a misleading "jid already exists" (docs/33 Phase C).
+    if (dto.kind === 'contact' && dto.sessionId) {
+      const samePerson = await this.findSameContact(dto.sessionId, dto.jid, dto.phone ?? null);
+      if (samePerson && samePerson.jid !== dto.jid) return this.mergeInto(samePerson, dto);
+    }
+
     const mapping = this.repo.create({
       sessionId: dto.sessionId ?? null,
       jid: dto.jid,
@@ -76,13 +84,54 @@ export class ClientMappingService {
       return await this.repo.save(mapping);
     } catch (err) {
       if (isUniqueViolation(err)) {
+        // Name the entry the data is already on, so nobody has to hunt for it.
+        const clash = dto.sessionId
+          ? await this.repo.findOne({ where: { sessionId: dto.sessionId, jid: dto.jid, kind: dto.kind } })
+          : null;
         throw new ConflictException(
           `A ${dto.kind} mapping for jid "${dto.jid}" already exists` +
-            (dto.sessionId ? ` in session "${dto.sessionId}"` : ''),
+            (dto.sessionId ? ` in session "${dto.sessionId}"` : '') +
+            (clash
+              ? `: "${clash.name}" (${[clash.company, clash.team, clash.role].filter(Boolean).join(', ')}), id ${clash.id}. Edit that entry instead.`
+              : ''),
         );
       }
       throw err;
     }
+  }
+
+  /** The existing contact this jid/phone already belongs to: by phone first, then by a recorded alias. */
+  private async findSameContact(sessionId: string, jid: string, phone: string | null): Promise<ClientMapping | null> {
+    if (phone) {
+      const byPhone = await this.repo.findOne({ where: { sessionId, kind: 'contact', phone } });
+      if (byPhone) return byPhone;
+    }
+    // A jid is digits, '@', '.', ':' and '-', never a LIKE wildcard, but refuse one anyway.
+    if (/[%_"\\]/.test(jid)) return null;
+    return this.repo.findOne({ where: { sessionId, kind: 'contact', aliasJids: Like(`%"${jid}"%`) } });
+  }
+
+  /**
+   * Fold a create request into the entry that already represents this person: remember the new jid as
+   * an alias and fill only what is blank, so a value already set on the entry is never overwritten.
+   */
+  private async mergeInto(existing: ClientMapping, dto: CreateClientMappingDto): Promise<ClientMapping> {
+    const aliases = this.parseAliasJids(existing.aliasJids);
+    if (dto.jid !== existing.jid && !aliases.includes(dto.jid))
+      existing.aliasJids = JSON.stringify([...aliases, dto.jid]);
+    if (
+      existing.company === UNKNOWN_CLIENT_MAPPING_COMPANY &&
+      dto.company?.trim() &&
+      dto.company !== UNKNOWN_CLIENT_MAPPING_COMPANY
+    ) {
+      existing.company = dto.company.trim();
+    }
+    if (!existing.phone && dto.phone) existing.phone = dto.phone;
+    if (!existing.team && dto.team) existing.team = dto.team;
+    if (!existing.role && dto.role) existing.role = dto.role;
+    if (!existing.timezone && dto.timezone) existing.timezone = dto.timezone;
+    if (!existing.notes && dto.notes) existing.notes = dto.notes;
+    return this.repo.save(existing);
   }
 
   /**

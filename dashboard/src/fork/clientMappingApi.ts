@@ -23,6 +23,8 @@ export interface ClientMapping {
   backupOwnerId: string | null;
   sentimentTracking: boolean;
   notes: string | null;
+  /** Other jids WhatsApp uses for this same contact (e.g. a @lid), recorded when they were matched by phone. */
+  aliasJids?: string[] | null;
   createdAt: string;
   updatedAt: string;
 }
