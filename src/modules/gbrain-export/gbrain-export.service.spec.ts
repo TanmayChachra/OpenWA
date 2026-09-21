@@ -23,6 +23,10 @@ const fakeConfig = (overrides: Record<string, unknown> = {}) => {
   } as unknown as ConfigService;
 };
 
+// The messages table stores epoch SECONDS (what the engines emit). Seeding milliseconds here once hid
+// an export that matched nothing against a real database.
+const sec = (msAgo = 0): number => Math.floor((Date.now() - msAgo) / 1000);
+
 describe('GbrainExportService', () => {
   let ds: DataSource;
   let mappings: Repository<ClientMapping>;
@@ -94,7 +98,7 @@ describe('GbrainExportService', () => {
         body: `hello ${n}`,
         type: 'text',
         direction: MessageDirection.INCOMING,
-        timestamp: Date.now(),
+        timestamp: sec(),
         ...over,
       }),
     );
@@ -111,7 +115,7 @@ describe('GbrainExportService', () => {
 
   it('renders every active group mapping in dry-run without ever calling the sink', async () => {
     await seedMapping();
-    await seedMessage({ timestamp: Date.now() - 1000 });
+    await seedMessage({ timestamp: sec(1000) });
 
     const dry = await service.run({ dryRun: true });
 
@@ -122,7 +126,7 @@ describe('GbrainExportService', () => {
 
   it('a real run delivers via the configured sink and the document carries the mapping name/company', async () => {
     await seedMapping();
-    await seedMessage({ timestamp: Date.now() - 1000 });
+    await seedMessage({ timestamp: sec(1000) });
 
     const real = await service.run({ dryRun: false });
 
@@ -141,24 +145,24 @@ describe('GbrainExportService', () => {
 
   it('a dry run never writes a checkpoint, so the next real run still sees the full window', async () => {
     await seedMapping();
-    const msg = await seedMessage({ timestamp: Date.now() - 1000 });
+    const msg = await seedMessage({ timestamp: sec(1000) });
 
     await service.run({ dryRun: true });
     expect(await state.findOne({ where: { sessionId: 's1', jid: 'group1@g.us' } })).toBeNull();
 
     await service.run({ dryRun: false });
     const checkpoint = await state.findOne({ where: { sessionId: 's1', jid: 'group1@g.us' } });
-    expect(checkpoint?.lastExportedMessageTimestamp).toBe(msg.timestamp);
+    expect(checkpoint?.lastExportedMessageTimestamp).toBe(msg.timestamp * 1000);
   });
 
   it('a second real run only includes messages after the checkpoint left by the first', async () => {
     await seedMapping();
-    await seedMessage({ timestamp: Date.now() - 5000, body: 'first-message-marker' });
+    await seedMessage({ timestamp: sec(5000), body: 'first-message-marker' });
 
     const firstRun = await service.run({ dryRun: false });
     expect(firstRun.documents[0].messageCount).toBe(1);
 
-    await seedMessage({ timestamp: Date.now() - 1000, body: 'second-message-marker' });
+    await seedMessage({ timestamp: sec(1000), body: 'second-message-marker' });
     const secondRun = await service.run({ dryRun: false });
 
     expect(secondRun.documents[0].messageCount).toBe(1);
@@ -168,7 +172,7 @@ describe('GbrainExportService', () => {
 
   it('an explicit lookbackDays overrides an existing checkpoint (manual backfill)', async () => {
     await seedMapping();
-    await seedMessage({ timestamp: Date.now() - 5000, body: 'old-message-marker' });
+    await seedMessage({ timestamp: sec(5000), body: 'old-message-marker' });
     await service.run({ dryRun: false }); // establishes a checkpoint past the old message
 
     const backfill = await service.run({ dryRun: false, lookbackDays: 30 });
@@ -179,7 +183,7 @@ describe('GbrainExportService', () => {
 
   it('a failed delivery leaves the checkpoint untouched, so the same window is retried next run', async () => {
     await seedMapping();
-    await seedMessage({ timestamp: Date.now() - 1000 });
+    await seedMessage({ timestamp: sec(1000) });
     fetchMock.mockResolvedValue({ ok: false, status: 500, statusText: 'Internal Server Error' } as unknown as Response);
 
     const result = await service.run({ dryRun: false });
@@ -190,7 +194,7 @@ describe('GbrainExportService', () => {
 
   it('caps a single document at MAX_MESSAGES_PER_DOCUMENT and advances the checkpoint only to the newest included message', async () => {
     await seedMapping();
-    const base = Date.now() - 1_000_000;
+    const base = sec(1_000_000);
     for (let i = 0; i < 510; i++) {
       await seedMessage({ timestamp: base + i, body: `m${i}` });
     }
@@ -199,7 +203,7 @@ describe('GbrainExportService', () => {
 
     expect(result.documents[0].messageCount).toBe(500);
     const checkpoint = await state.findOne({ where: { sessionId: 's1', jid: 'group1@g.us' } });
-    expect(checkpoint?.lastExportedMessageTimestamp).toBe(base + 499);
+    expect(checkpoint?.lastExportedMessageTimestamp).toBe((base + 499) * 1000);
   });
 
   it('one mapping throwing does not stop the rest of the batch from being exported', async () => {
@@ -239,10 +243,19 @@ describe('GbrainExportService', () => {
 
   it('names the sender of an incoming group message from chatName, falling back to the author number', async () => {
     await seedMapping();
-    await seedMessage({ timestamp: Date.now() - 2000, body: 'named-marker', chatName: 'Palak' });
-    await seedMessage({ timestamp: Date.now() - 1000, body: 'author-marker', author: '7262@lid' });
+    await seedMessage({ timestamp: sec(2000), body: 'named-marker', chatName: 'Palak' });
+    await seedMessage({ timestamp: sec(1000), body: 'author-marker', author: '7262@lid' });
     await service.run({ dryRun: false });
     expect(sentBodies()[0]).toContain('**Palak**: named-marker');
     expect(sentBodies()[0]).toContain('**7262**: author-marker');
+  });
+
+  it('reads message timestamps as epoch seconds: a recent real-shaped row is exported with a sane date', async () => {
+    await seedMapping();
+    const seconds = sec(60_000);
+    await seedMessage({ timestamp: seconds, body: 'seconds-marker' });
+    const run = await service.run({ dryRun: true });
+    expect(run.documents[0].messageCount).toBe(1);
+    expect(run.documents[0].markdown).toContain(`[${new Date(seconds * 1000).toISOString()}]`);
   });
 });
