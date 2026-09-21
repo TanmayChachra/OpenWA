@@ -18,6 +18,8 @@ export interface GbrainExportMessageLine {
   direction: 'incoming' | 'outgoing';
   body: string | null;
   type: string;
+  /** Sender's display name for an incoming group message; null for our own sends. */
+  sender?: string | null;
 }
 
 /** A single value's worth of YAML front matter, quoted only when it needs to be. */
@@ -69,6 +71,9 @@ export function renderGbrainDocument(
     yamlLine('jid', mapping.jid),
     yamlLine('exportedAt', exportedAt.toISOString()),
     yamlLine('sinceTimestamp', sinceTimestamp === null ? null : new Date(sinceTimestamp).toISOString()),
+    // Marks this document as a DELTA. Identity Hub keys the page it is captured to by this value, so
+    // each run adds a page instead of replacing the previous run's messages.
+    yamlLine('firstMessageAt', messages.length > 0 ? new Date(messages[0].timestamp).toISOString() : null),
     yamlLine('messageCount', messages.length),
   ].join('\n');
 
@@ -92,7 +97,8 @@ export function renderGbrainDocument(
           .map(m => {
             const stamp = new Date(m.timestamp).toISOString();
             const text = m.body?.trim() ? m.body.trim() : `(${m.type})`;
-            return `- [${stamp}] (${m.direction}) ${text}`;
+            const who = m.sender ? ` **${m.sender}**:` : '';
+            return `- [${stamp}] (${m.direction})${who} ${text}`;
           })
           .join('\n');
 

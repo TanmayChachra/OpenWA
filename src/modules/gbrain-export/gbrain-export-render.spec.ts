@@ -87,4 +87,35 @@ describe('renderGbrainDocument', () => {
     const doc = renderGbrainDocument(baseMapping, [], null, new Date());
     expect(doc.markdown).toContain('# Alice (Acme)');
   });
+
+  it('a delta carries firstMessageAt (the first message, ISO) so the hub gives it its own page', () => {
+    const doc = renderGbrainDocument(
+      baseMapping,
+      [
+        { timestamp: Date.parse('2026-01-02T03:04:05.000Z'), direction: 'incoming', body: 'a', type: 'text' },
+        { timestamp: Date.parse('2026-01-02T04:00:00.000Z'), direction: 'incoming', body: 'b', type: 'text' },
+      ],
+      null,
+      new Date(),
+    );
+    expect(doc.markdown).toContain('firstMessageAt: 2026-01-02T03:04:05.000Z');
+  });
+
+  it('an empty window has firstMessageAt null', () => {
+    expect(renderGbrainDocument(baseMapping, [], null, new Date()).markdown).toContain('firstMessageAt: null');
+  });
+
+  it('shows who said each incoming message, and nothing extra for our own sends', () => {
+    const doc = renderGbrainDocument(
+      baseMapping,
+      [
+        { timestamp: 1, direction: 'incoming', body: 'hello', type: 'text', sender: 'Palak' },
+        { timestamp: 2, direction: 'outgoing', body: 'thanks', type: 'text', sender: null },
+      ],
+      null,
+      new Date(),
+    );
+    expect(doc.markdown).toContain('(incoming) **Palak**: hello');
+    expect(doc.markdown).toContain('(outgoing) thanks');
+  });
 });
