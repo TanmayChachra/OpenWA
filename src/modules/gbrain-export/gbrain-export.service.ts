@@ -191,7 +191,10 @@ export class GbrainExportService {
       where: {
         sessionId,
         chatId: mapping.jid,
-        timestamp: MoreThan(sinceTimestamp),
+        // Message.timestamp is epoch SECONDS (what the engines emit and the table stores), while
+        // sinceTimestamp and the checkpoint are milliseconds. Comparing them raw matched nothing, so the
+        // export silently rendered zero messages from a real database.
+        timestamp: MoreThan(Math.floor(sinceTimestamp / 1000)),
       },
       order: { timestamp: 'ASC' },
       take: MAX_MESSAGES_PER_DOCUMENT,
@@ -211,7 +214,7 @@ export class GbrainExportService {
         notes: mapping.notes,
       },
       rows.map(r => ({
-        timestamp: r.timestamp,
+        timestamp: r.timestamp * 1000,
         direction: r.direction,
         body: r.body,
         type: r.type,
@@ -234,7 +237,7 @@ export class GbrainExportService {
       delivered = sent.delivered;
       error = sent.error;
       if (delivered && rows.length > 0) {
-        const newCheckpoint = rows[rows.length - 1].timestamp;
+        const newCheckpoint = rows[rows.length - 1].timestamp * 1000;
         await this.state.upsert({ sessionId, jid: mapping.jid, lastExportedMessageTimestamp: newCheckpoint }, [
           'sessionId',
           'jid',
