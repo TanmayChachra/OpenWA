@@ -53,6 +53,7 @@ import { useContactStatuses } from '../hooks/useContactStatuses';
 import { useChatScrollPosition } from '../hooks/useChatScrollPosition';
 import { useCurrentEngineQuery } from '../hooks/queries';
 import { useClientMappingsQuery } from '../fork/clientMappingQueries';
+import { buildMappedSenders, isSenderMapped } from '../fork/mappedSenders';
 import { createTrailingCoalescer } from '../utils/trailingCoalescer';
 import MessageBody from '../components/chats/MessageBody';
 import MediaLightbox, { type LightboxItem } from '../components/chats/MediaLightbox';
@@ -306,7 +307,11 @@ export function Chats() {
     { sessionId: selectedSessionId || undefined, kind: 'contact' },
     { enabled: isAdmin && !!selectedSessionId },
   );
-  const mappedContactJids = useMemo(() => new Set(mappedContacts.map(m => m.jid)), [mappedContacts]);
+  const mappedSenders = useMemo(() => buildMappedSenders(mappedContacts), [mappedContacts]);
+  const isMappedSender = useCallback(
+    (author: string, chatName?: string | null) => isSenderMapped(mappedSenders, author, chatName),
+    [mappedSenders],
+  );
 
   // "Add to mapping" for one group participant (the sender label above their message), not the
   // whole group — e.g. Sneha Desai posts in "Unbundl x Pink Wardrobe" but isn't mapped herself yet.
@@ -1059,7 +1064,7 @@ export function Chats() {
                   onReact={handleReactMessage}
                   onDelete={handleDeleteMessage}
                   showTagSender={isAdmin}
-                  mappedContactJids={mappedContactJids}
+                  isMappedSender={isMappedSender}
                   onTagSender={handleTagSender}
                   resolvingSenderJid={resolvingSenderJid}
                   onClickButton={handleClickButton}

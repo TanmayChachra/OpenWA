@@ -81,6 +81,48 @@ describe('ClientMappingService', () => {
       await expect(service.create(contactDto({ name: 'Alice again' }))).rejects.toBeInstanceOf(ConflictException);
     });
 
+    it('a jid clash names the entry the data is already on', async () => {
+      const first = await service.create(contactDto({ team: 'Tech', role: 'PM' }));
+      const err = await service.create(contactDto({ name: 'Alice again' })).catch((e: Error) => e);
+      expect(err).toBeInstanceOf(ConflictException);
+      expect((err as Error).message).toContain('"Alice" (Acme, Tech, PM)');
+      expect((err as Error).message).toContain(first.id);
+    });
+
+    it('merges into the existing contact when the phone is already mapped, keeping the new jid as an alias', async () => {
+      const first = await service.create(contactDto({ phone: '9198', team: 'Tech' }));
+      const merged = await service.create(
+        contactDto({ jid: '72627@lid', name: 'Alice L', phone: '9198', role: 'PM', team: 'Ops', company: 'Other' }),
+      );
+      expect(merged.id).toBe(first.id);
+      expect(JSON.parse(merged.aliasJids as string)).toEqual(['72627@lid']);
+      expect(merged.team).toBe('Tech'); // already set, never overwritten
+      expect(merged.company).toBe('Acme'); // already a real company, never overwritten
+      expect(merged.role).toBe('PM'); // was blank, filled
+      expect(await ds.getRepository(ClientMapping).count()).toBe(1);
+    });
+
+    it('replaces the Unknown placeholder company when merging', async () => {
+      await service.create(contactDto({ phone: '9198', company: 'Unknown' }));
+      const merged = await service.create(contactDto({ jid: '72627@lid', phone: '9198', company: 'Unbundl' }));
+      expect(merged.company).toBe('Unbundl');
+    });
+
+    it('treats a jid that is already a recorded alias as the same contact', async () => {
+      const first = await service.create(contactDto({ phone: '9198' }));
+      await service.create(contactDto({ jid: '72627@lid', phone: '9198' }));
+      const again = await service.create(contactDto({ jid: '72627@lid', name: 'Alice L' }));
+      expect(again.id).toBe(first.id);
+      expect(await ds.getRepository(ClientMapping).count()).toBe(1);
+    });
+
+    it('does not merge across sessions', async () => {
+      await service.create(contactDto({ phone: '9198' }));
+      const other = await service.create(contactDto({ sessionId: 's2', jid: '72627@lid', phone: '9198' }));
+      expect(other.sessionId).toBe('s2');
+      expect(await ds.getRepository(ClientMapping).count()).toBe(2);
+    });
+
     it('allows the same jid across two different sessions', async () => {
       await service.create(contactDto());
       await expect(service.create(contactDto({ sessionId: 's2' }))).resolves.toBeDefined();
